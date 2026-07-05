@@ -43,6 +43,7 @@ def get(name: str, default: str = "") -> str:
 # Convenience accessors
 QWEN_BASE_URL = get("QWEN_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
 QWEN_MODEL = get("QWEN_MODEL", "qwen3.7-plus")
+QWEN_EMBED_MODEL = get("QWEN_EMBED_MODEL", "text-embedding-v4")
 
 
 def qwen_client():
