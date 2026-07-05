@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#6b7280"/>
+    </marker>
+    <style>
+      .box{rx:10;ry:10;stroke-width:1.5}
+      .lbl{font-size:14px;font-weight:600;fill:#111827}
+      .sub{font-size:11.5px;fill:#374151}
+      .tag{font-size:11px;fill:#6b7280}
+      .edge{stroke:#6b7280;stroke-width:1.5;fill:none;marker-end:url(#arrow)}
+      .title{font-size:18px;font-weight:700;fill:#111827}
+    </style>
+  </defs>
+
+  <text x="30" y="34" class="title">Mnemo — self-managing bi-temporal memory (Track 1)</text>
+  <text x="30" y="54" class="tag">clients ▸ two surfaces ▸ one memory core ▸ Qwen Cloud (Alibaba Cloud Model Studio)</text>
+
+  <!-- Clients -->
+  <rect x="30" y="90" width="180" height="70" class="box" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="120" y="118" text-anchor="middle" class="lbl">MCP clients</text>
+  <text x="120" y="138" text-anchor="middle" class="sub">Claude Desktop, IDEs,</text>
+  <text x="120" y="152" text-anchor="middle" class="sub">any MCP host / agent</text>
+
+  <rect x="30" y="180" width="180" height="66" class="box" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="120" y="206" text-anchor="middle" class="lbl">HTTP clients</text>
+  <text x="120" y="226" text-anchor="middle" class="sub">curl / web demo</text>
+
+  <!-- Surfaces -->
+  <rect x="290" y="90" width="200" height="70" class="box" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="390" y="115" text-anchor="middle" class="lbl">MCP server</text>
+  <text x="390" y="134" text-anchor="middle" class="sub">learn · recall ·</text>
+  <text x="390" y="149" text-anchor="middle" class="sub">forget_stale · stats</text>
+
+  <rect x="290" y="180" width="200" height="66" class="box" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="390" y="205" text-anchor="middle" class="lbl">FastAPI backend</text>
+  <text x="390" y="224" text-anchor="middle" class="sub">/ingest /recall /forget — on Alibaba Cloud</text>
+
+  <!-- Core -->
+  <rect x="290" y="285" width="360" height="205" class="box" fill="#fff7ed" stroke="#fed7aa"/>
+  <text x="470" y="311" text-anchor="middle" class="lbl">MemoryCore</text>
+
+  <rect x="310" y="326" width="150" height="66" class="box" fill="#ffffff" stroke="#fdba74"/>
+  <text x="385" y="349" text-anchor="middle" class="sub" font-weight="700">WRITE: distill</text>
+  <text x="385" y="366" text-anchor="middle" class="tag">atomic keyed facts</text>
+  <text x="385" y="381" text-anchor="middle" class="tag">+ raw slices (hybrid)</text>
+
+  <rect x="480" y="326" width="150" height="66" class="box" fill="#ffffff" stroke="#fdba74"/>
+  <text x="555" y="349" text-anchor="middle" class="sub" font-weight="700">READ: recall</text>
+  <text x="555" y="366" text-anchor="middle" class="tag">no LLM · dual-pool</text>
+  <text x="555" y="381" text-anchor="middle" class="tag">relevance × decay</text>
+
+  <rect x="310" y="404" width="320" height="70" class="box" fill="#ffffff" stroke="#fdba74"/>
+  <text x="470" y="426" text-anchor="middle" class="sub" font-weight="700">bi-temporal sqlite store</text>
+  <text x="470" y="444" text-anchor="middle" class="tag">valid_at/invalid_at (event) · created_at/expired_at (txn)</text>
+  <text x="470" y="459" text-anchor="middle" class="tag">supersession · salience-decay forgetting · time-travel</text>
+
+  <!-- Qwen Cloud -->
+  <rect x="710" y="285" width="160" height="205" class="box" fill="#faf5ff" stroke="#e9d5ff"/>
+  <text x="790" y="311" text-anchor="middle" class="lbl">Qwen Cloud</text>
+  <text x="790" y="329" text-anchor="middle" class="tag">Alibaba Cloud</text>
+  <text x="790" y="343" text-anchor="middle" class="tag">Model Studio</text>
+  <rect x="726" y="356" width="128" height="38" class="box" fill="#ffffff" stroke="#d8b4fe"/>
+  <text x="790" y="380" text-anchor="middle" class="sub">qwen3.6-flash</text>
+  <rect x="726" y="402" width="128" height="38" class="box" fill="#ffffff" stroke="#d8b4fe"/>
+  <text x="790" y="426" text-anchor="middle" class="sub">text-embedding-v4</text>
+  <rect x="726" y="448" width="128" height="34" class="box" fill="#ffffff" stroke="#d8b4fe"/>
+  <text x="790" y="470" text-anchor="middle" class="sub">qwen3.7-plus</text>
+
+  <!-- OSS -->
+  <rect x="30" y="404" width="180" height="70" class="box" fill="#f0f9ff" stroke="#bae6fd"/>
+  <text x="120" y="430" text-anchor="middle" class="lbl">Alibaba Cloud OSS</text>
+  <text x="120" y="450" text-anchor="middle" class="sub">durable memory</text>
+  <text x="120" y="464" text-anchor="middle" class="sub">snapshots</text>
+
+  <!-- Edges -->
+  <path class="edge" d="M210,125 L288,125"/>
+  <path class="edge" d="M210,213 L288,213"/>
+  <path class="edge" d="M390,160 L390,283"/>
+  <path class="edge" d="M390,246 L440,283"/>
+  <path class="edge" d="M385,392 L470,404"/>
+  <path class="edge" d="M555,392 L470,404"/>
+  <path class="edge" d="M630,359 L724,375"/>
+  <path class="edge" d="M630,375 L724,421"/>
+  <path class="edge" d="M470,474 L200,439" />
+  <text x="250" y="420" class="tag">snapshot/restore</text>
+  <text x="655" y="352" class="tag">distill/embed</text>
+</svg>
