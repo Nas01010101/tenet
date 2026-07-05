@@ -114,6 +114,7 @@ class MemoryCore:
         valid_at: float | None = None,
         supersede: float = 0.90,
         dedup: float = 0.985,
+        surprise_gate: float | None = None,
         _vec: np.ndarray | None = None,
     ) -> int:
         """Add a memory.
@@ -134,7 +135,17 @@ class MemoryCore:
         va = valid_at if valid_at is not None else t
         with self._lock:
             if kind == "raw":
-                pass  # raw slices never supersede each other; just insert
+                # World-model efficiency (predictive-coding principle): only store a raw
+                # observation the memory does NOT already predict. If it's near-identical
+                # to an existing raw slice (cosine >= surprise_gate), it carries no new
+                # information — skip it. Shrinks the store without losing novel detail.
+                if surprise_gate is not None:
+                    for r in self.db.execute(
+                        "SELECT embedding FROM memories WHERE kind='raw' AND archived=0 "
+                        "AND expired_at IS NULL"
+                    ).fetchall():
+                        if float(np.dot(vec, np.frombuffer(r["embedding"], dtype=np.float32))) >= surprise_gate:
+                            return -1  # redundant observation, not stored
             elif key is not None:
                 prior = self.db.execute(
                     "SELECT id, text, pinned, salience FROM memories "
