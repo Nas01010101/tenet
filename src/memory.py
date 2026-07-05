@@ -10,9 +10,9 @@ hackathon scale (<1e5 memories); swap in sqlite-vec later without touching the A
 """
 from __future__ import annotations
 
-import json
 import math
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,7 +44,11 @@ class MemoryCore:
         self._now = now  # injectable clock so tests can simulate time passing
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.db_path)
+        # check_same_thread=False + a lock: FastAPI serves sync endpoints from a
+        # threadpool, so the connection is touched from multiple threads.
+        self.db = sqlite3.connect(self.db_path, check_same_thread=False)
+        self._lock = threading.RLock()
+        self.db.row_factory = sqlite3.Row
         self.db.execute(
             """CREATE TABLE IF NOT EXISTS memories (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,49 +80,58 @@ class MemoryCore:
         text = text.strip()
         if not text:
             raise ValueError("empty memory")
-        vec = self._embed(text)
-        if dedup:
-            hit = self._nearest(vec)
-            if hit and hit[1] >= dedup:
-                self._touch(hit[0])
-                return hit[0]
-        t = self._now()
-        cur = self.db.execute(
-            "INSERT INTO memories(text, embedding, created_at, last_access, pinned) "
-            "VALUES (?,?,?,?,?)",
-            (text, vec.tobytes(), t, t, int(pinned)),
-        )
-        self.db.commit()
-        return cur.lastrowid
+        vec = self._embed(text)  # network call — kept outside the lock
+        with self._lock:
+            if dedup:
+                hit = self._nearest(vec)
+                if hit and hit[1] >= dedup:
+                    # Near-duplicate: the NEWER fact supersedes the old one (e.g. a
+                    # changed flight time). Overwrite text + embedding in place so
+                    # the stale value retires without a conflicting duplicate.
+                    self.db.execute(
+                        "UPDATE memories SET text=?, embedding=?, last_access=?, uses=uses+1 WHERE id=?",
+                        (text, vec.tobytes(), self._now(), hit[0]),
+                    )
+                    self.db.commit()
+                    return hit[0]
+            t = self._now()
+            cur = self.db.execute(
+                "INSERT INTO memories(text, embedding, created_at, last_access, pinned) "
+                "VALUES (?,?,?,?,?)",
+                (text, vec.tobytes(), t, t, int(pinned)),
+            )
+            self.db.commit()
+            return cur.lastrowid
 
     # ---- recall ----------------------------------------------------------
     def recall(self, query: str, *, k: int = 5, char_budget: int | None = None) -> list[Memory]:
         """Return the most relevant *live* memories, ranked by relevance × decay.
         If char_budget is set, greedily fill up to that many characters (recall
         under a limited context window)."""
-        qv = self._embed(query)
-        rows = self._live_rows()
-        if not rows:
-            return []
-        scored = []
-        for row in rows:
-            emb = np.frombuffer(row["embedding"], dtype=np.float32)
-            relevance = float(np.dot(qv, emb))            # cosine (both unit)
-            rank = relevance * self._decay(row)           # forgetting-aware rank
-            scored.append((rank, relevance, row))
-        scored.sort(key=lambda x: x[0], reverse=True)
+        qv = self._embed(query)  # network call — kept outside the lock
+        with self._lock:
+            rows = self._live_rows()
+            if not rows:
+                return []
+            scored = []
+            for row in rows:
+                emb = np.frombuffer(row["embedding"], dtype=np.float32)
+                relevance = float(np.dot(qv, emb))        # cosine (both unit)
+                rank = relevance * self._decay(row)       # forgetting-aware rank
+                scored.append((rank, relevance, row))
+            scored.sort(key=lambda x: x[0], reverse=True)
 
-        out: list[Memory] = []
-        used = 0
-        for rank, _rel, row in scored:
-            if len(out) >= k:
-                break
-            if char_budget is not None and used + len(row["text"]) > char_budget and out:
-                continue  # skip ones that don't fit, keep filling with smaller ones
-            self._touch(row["id"])
-            used += len(row["text"])
-            out.append(self._to_memory(row, rank))
-        return out
+            out: list[Memory] = []
+            used = 0
+            for rank, _rel, row in scored:
+                if len(out) >= k:
+                    break
+                if char_budget is not None and used + len(row["text"]) > char_budget and out:
+                    continue  # skip ones that don't fit, keep filling with smaller ones
+                self._touch(row["id"])
+                used += len(row["text"])
+                out.append(self._to_memory(row, rank))
+            return out
 
     # ---- forgetting ------------------------------------------------------
     def _decay(self, row) -> float:
@@ -134,16 +147,16 @@ class MemoryCore:
     def forget_sweep(self) -> int:
         """Archive memories whose decay score fell below threshold. Returns count."""
         n = 0
-        for row in self._live_rows():
-            if not row["pinned"] and self._decay(row) < _FORGET_THRESHOLD:
-                self.db.execute("UPDATE memories SET archived=1 WHERE id=?", (row["id"],))
-                n += 1
-        self.db.commit()
+        with self._lock:
+            for row in self._live_rows():
+                if not row["pinned"] and self._decay(row) < _FORGET_THRESHOLD:
+                    self.db.execute("UPDATE memories SET archived=1 WHERE id=?", (row["id"],))
+                    n += 1
+            self.db.commit()
         return n
 
     # ---- helpers ---------------------------------------------------------
     def _live_rows(self):
-        self.db.row_factory = sqlite3.Row
         return self.db.execute("SELECT * FROM memories WHERE archived=0").fetchall()
 
     def _nearest(self, vec: np.ndarray):
@@ -170,7 +183,6 @@ class MemoryCore:
         )
 
     def stats(self) -> dict:
-        self.db.row_factory = sqlite3.Row
         live = self.db.execute("SELECT COUNT(*) c FROM memories WHERE archived=0").fetchone()["c"]
         arch = self.db.execute("SELECT COUNT(*) c FROM memories WHERE archived=1").fetchone()["c"]
         return {"live": live, "archived": arch}
