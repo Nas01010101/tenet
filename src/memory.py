@@ -68,6 +68,7 @@ class MemoryCore:
             """CREATE TABLE IF NOT EXISTS memories (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                  text TEXT NOT NULL,
+                 kind TEXT NOT NULL DEFAULT 'fact',  -- 'fact' (distilled, keyed) | 'raw' (verbatim slice)
                  skey TEXT,                     -- semantic key "subject::attribute" for supersession
                  embedding BLOB NOT NULL,
                  salience REAL NOT NULL DEFAULT 0.5,
@@ -99,6 +100,7 @@ class MemoryCore:
         text: str,
         *,
         key: str | None = None,
+        kind: str = "fact",
         pinned: bool = False,
         salience: float = 0.5,
         valid_at: float | None = None,
@@ -122,7 +124,9 @@ class MemoryCore:
         t = self._now()
         va = valid_at if valid_at is not None else t
         with self._lock:
-            if key is not None:
+            if kind == "raw":
+                pass  # raw slices never supersede each other; just insert
+            elif key is not None:
                 prior = self.db.execute(
                     "SELECT id, text, pinned, salience FROM memories "
                     "WHERE skey=? AND archived=0 AND expired_at IS NULL",
@@ -152,9 +156,9 @@ class MemoryCore:
                         (va, t, hit[0]),
                     )
             cur = self.db.execute(
-                "INSERT INTO memories(text, skey, embedding, salience, valid_at, created_at, "
-                "last_access, pinned) VALUES (?,?,?,?,?,?,?,?)",
-                (text, key, vec.tobytes(), float(salience), va, t, t, int(pinned)),
+                "INSERT INTO memories(text, kind, skey, embedding, salience, valid_at, created_at, "
+                "last_access, pinned) VALUES (?,?,?,?,?,?,?,?,?)",
+                (text, kind, key, vec.tobytes(), float(salience), va, t, t, int(pinned)),
             )
             self.db.commit()
             return cur.lastrowid
@@ -184,16 +188,39 @@ class MemoryCore:
                 emb = np.frombuffer(row["embedding"], dtype=np.float32)
                 relevance = float(np.dot(qv, emb))        # cosine (both unit)
                 rank = relevance * self._decay(row)       # forgetting-aware rank
-                scored.append((rank, row))
+                scored.append((rank, relevance, row))
             scored.sort(key=lambda x: x[0], reverse=True)
+
+            # Dual-pool selection: distilled facts win on consistency/temporal, raw
+            # slices win on verbatim detail (durations, numbers). Guarantee raw slices
+            # a share of the budget so distillation can't crowd out the exact answer.
+            n_raw_min = k // 2
+            picked, seen = [], set()
+
+            def _take(row, rank):
+                if row["id"] in seen:
+                    return False
+                seen.add(row["id"]); picked.append((rank, row)); return True
+
+            for rank, _rel, row in scored:                # first pass: best overall
+                if len([p for p in picked if p[1]["kind"] != "raw"]) >= k - n_raw_min \
+                        and row["kind"] != "raw":
+                    continue
+                if len(picked) >= k:
+                    break
+                _take(row, rank)
+            if len(picked) < k:                            # backfill raw by relevance
+                for _rank, rel, row in sorted(scored, key=lambda x: x[1], reverse=True):
+                    if len(picked) >= k:
+                        break
+                    if row["kind"] == "raw":
+                        _take(row, rel)
 
             out: list[Memory] = []
             used = 0
-            for rank, row in scored:
-                if len(out) >= k:
-                    break
+            for rank, row in sorted(picked, key=lambda x: x[0], reverse=True):
                 if char_budget is not None and used + len(row["text"]) > char_budget and out:
-                    continue  # skip ones that don't fit, keep filling with smaller ones
+                    continue
                 if as_of is None:
                     self._touch(row["id"])
                 used += len(row["text"])

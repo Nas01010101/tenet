@@ -34,6 +34,28 @@ class Mnemo:
             ))
         return ids
 
+    def ingest_session(self, turns, *, valid_at: float | None = None, pinned: bool = False) -> dict:
+        """Hybrid ingest of a conversation session (list of {role,content} or (role,content)).
+
+        Stores BOTH:
+          • distilled keyed facts  — for supersession + temporal consistency
+          • raw verbatim turns      — so quantitative/specific detail (durations, numbers,
+                                       names) survives; distillation alone flattens these.
+        This mirrors SOTA (LongMemEval-V2: the raw slice pool matters for static questions).
+        """
+        norm = [(t["role"], t["content"]) if isinstance(t, dict) else t for t in turns]
+        convo = "\n".join(f"{r}: {c}" for r, c in norm)
+        fact_ids = self.ingest(convo, pinned=pinned)
+        raw_ids = []
+        for role, content in norm:
+            if not content.strip():
+                continue
+            # raw slices: retrievable, lower salience, never supersede each other
+            raw_ids.append(self.core.store(
+                f"{role}: {content.strip()}", kind="raw", salience=0.35, valid_at=valid_at,
+            ))
+        return {"facts": fact_ids, "raw": raw_ids}
+
     def store_fact(self, text: str, **kw) -> int:
         """Store a pre-formed fact directly (bypass distillation)."""
         return self.core.store(text, **kw)
