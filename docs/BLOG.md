@@ -47,4 +47,4 @@ persistent, self-managing memory.
 Memory that manages itself — stores what matters, retires what changed, forgets what's
 stale. That's Mnemo.
 
-*Code: [GITHUB URL] · Built for [Qwen Cloud Hackathon](https://qwencloud-hackathon.devpost.com).*
+*Code: https://github.com/Nas01010101/mnemo · Built for [Qwen Cloud Hackathon](https://qwencloud-hackathon.devpost.com).*

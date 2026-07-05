@@ -55,7 +55,7 @@ from distillation, exposed over MCP.
 `FastAPI` · `sqlite` · `NumPy` · `Alibaba Cloud OSS` · `Python`
 
 ## Links (fill in)
-- **Code repository:** [GITHUB URL] (public, MIT license visible in About)
+- **Code repository:** https://github.com/Nas01010101/mnemo (public, MIT license visible in About)
 - **Demo video (≤3 min):** [YOUTUBE URL]
 - **Architecture diagram:** `docs/architecture.svg` in the repo
 - **Proof of Alibaba Cloud services/APIs:** `src/config.py` + `src/distill.py` +
