@@ -45,14 +45,15 @@ def forget_stale() -> str:
     archived plus current store stats."""
     n = _core.forget_sweep()
     st = _core.stats()
-    return f"archived {n} stale memories · live={st['live']} archived={st['archived']}"
+    return (f"archived {n} stale memories · current={st['current']} "
+            f"superseded={st['superseded']} archived={st['archived']}")
 
 
 @mcp.tool()
 def memory_stats() -> str:
-    """Report how many live vs archived memories are in the store."""
+    """Report the store's current / superseded (history) / archived counts."""
     st = _core.stats()
-    return f"live={st['live']} archived={st['archived']}"
+    return f"current={st['current']} superseded={st['superseded']} archived={st['archived']}"
 
 
 if __name__ == "__main__":
