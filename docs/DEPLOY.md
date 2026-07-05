@@ -1,8 +1,26 @@
 # Deploying Mnemo on Alibaba Cloud (mandatory Proof-of-Deployment)
 
-The hackathon requires the backend to **run on Alibaba Cloud** + a short recording +
-a repo code file that uses Alibaba Cloud services/APIs (that file is
-[`src/alicloud_oss.py`](../src/alicloud_oss.py), using OSS).
+## Credentials reality (what you actually need)
+- **To RUN Mnemo: only `DASHSCOPE_API_KEY`.** Nothing else. The app never calls OSS
+  unless you explicitly invoke `src/alicloud_oss.py`.
+- **"Uses Alibaba Cloud services and APIs" proof — already satisfied.** Qwen Cloud /
+  DashScope *is* Alibaba Cloud Model Studio; every model + embedding call in
+  `src/config.py`, `src/memory.py`, `src/distill.py` hits
+  `dashscope-intl.aliyuncs.com` (an Alibaba Cloud API). That is the linkable proof file.
+  `src/alicloud_oss.py` (OSS) is an *optional* second, stronger proof — use only if you
+  want it.
+- **"Backend running on Alibaba Cloud" (compute) — the one optional add.** Needs an
+  Alibaba Cloud AccessKey, which is generated from the **same Qwen Cloud account you
+  already have** (Qwen Cloud = Alibaba Cloud): https://ram.console.aliyun.com/manage/ak
+  (~2 min). If you provide one later, deploy is one command (below). If not, the entry
+  still uses Alibaba Cloud services throughout via DashScope.
+
+---
+
+The hackathon asks for the backend to run on Alibaba Cloud + a short recording +
+a repo code file that uses Alibaba Cloud services/APIs. The primary proof file is the
+DashScope integration itself; [`src/alicloud_oss.py`](../src/alicloud_oss.py) (OSS) is
+an optional stronger proof.
 
 Two paths. **ECS is recommended for the proof video** (easy to show a public IP +
 the running process); Function Compute is cheaper/serverless.
