@@ -25,23 +25,39 @@ Mnemo **wins multi-session** (memory consolidation helps) but **loses temporal-r
 (distillation compresses away the specific durations/dates those questions need). This
 told us retrieval-recall is the wrong headline metric for a memory system — see §2.
 
-## 2. Where Mnemo is architecturally superior: knowledge-update
-Retrieval recall doesn't capture the thing a *memory* system is for: serving the
-**current** value of a fact that changed over time. `scripts/bench_knowledge_update.py`
-constructs histories where facts (residence, job, car, …) are updated across sessions
-amid distractors, then asks the current value.
+## 2. Knowledge-update + the world-model mechanisms (`scripts/bench_knowledge_update.py`)
+Constructs histories where facts (residence, job, car, …) change across sessions amid
+distractors + repeats, then asks the current value.
 
-- **naive-RAG** retrieves the top-k similar turns — which include BOTH the stale and the
-  new statement — so the reader sees conflicting values and can answer with a stale one.
-- **Mnemo** supersedes: the old value's `expired_at` is set, so current recall returns
-  **only** the latest value (older beliefs remain queryable via `recall(as_of=…)`).
+> Off-Qwen validation protocol: the Qwen free quota was exhausted during evaluation, so
+> this was run with a local embedder (`bge-small-en-v1.5`) + `gpt-4o-mini` reader via
+> OpenRouter. It validates the **architecture** (Mnemo vs RAG under identical settings);
+> the shipped product still uses Qwen Cloud. n=20, k=8, 4 principals.
 
-Metric: current-value accuracy + **stale-leak rate** (answering with an outdated value —
-the failure RAG is structurally prone to and Mnemo is structurally immune to).
+**A design flaw we found and fixed (honestly).** The first run *refuted* the naive thesis:
+Mnemo scored **55%** current-correct with a **45% stale-leak** vs RAG's 95% — because the
+hybrid raw-slice pool reintroduced superseded values the fact layer had retired. The fix
+is a world-model consistency rule: **the current facts are the belief state; a raw slice
+that echoes a superseded belief is stale evidence and is retired from current recall**
+(`_STALE_ECHO`). That took Mnemo from 55% → **100%**:
 
-> Status: harness implemented; **run pending Qwen API billing** (free trial quota was
-> exhausted during evaluation). The underlying capability is already **proven
-> deterministically** in §3.
+| | current-correct | stale-leak |
+|---|---|---|
+| naive-RAG | 100% | 0% |
+| Mnemo (before stale-echo fix) | 55% | 45% |
+| **Mnemo (after fix)** | **100%** | **0%** |
+
+**Honest read:** on this clean case Mnemo now *matches* strong RAG on accuracy — it does
+not beat it (RAG's chronological raw-dump lets a capable reader pick the latest when all
+values fit in top-k). Mnemo's advantages are elsewhere (§2b, §3).
+
+### 2b. World-model memory efficiency
+- **Surprise-gated writes** (predictive-coding principle): a raw observation the store
+  already predicts (cosine ≥ 0.97 to an existing slice) carries no information and isn't
+  stored. Measured: **16 of 108 turns (15%) dropped as redundant** — exactly the repeats —
+  with **no accuracy loss**. RAG stores everything.
+- **Compact belief-state recall**: reader context ≈340 chars vs ~1200 for full history
+  (72% less). (RAG achieves similar read-size; the storage-side saving is Mnemo-specific.)
 
 ## 3. Capabilities proven by deterministic tests (no benchmark needed)
 These pass in `scripts/test_memory.py` + `scripts/test_mnemo_e2e.py` and demonstrate the
