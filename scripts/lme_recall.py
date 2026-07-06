@@ -40,13 +40,15 @@ def recall_hit(sources, evidence):
 
 
 ANSWER_MODEL = config.get("QWEN_ANSWER_MODEL", "qwen3.7-plus")
+READER_MODEL = config.get("READER_MODEL", "")  # OpenRouter reader override (strong model)
 _qa_usage = {"in": 0, "out": 0}
 
 
 def _qa_chat(system, user, max_tokens=256):
     return config.chat([{"role": "system", "content": system},
                         {"role": "user", "content": user}],
-                       qwen_default=ANSWER_MODEL, max_tokens=max_tokens)
+                       qwen_default=ANSWER_MODEL, max_tokens=max_tokens,
+                       or_model=READER_MODEL or None)
 
 
 _ANS_SYS = ("Answer the question using ONLY the provided memory about the user. Reason over "
@@ -67,7 +69,7 @@ def qa_judge(question, gold, pred):
                     max_tokens=4).lower().startswith("y")
 
 
-def eval_instance(inst, k, embedder, qa=False):
+def eval_instance(inst, k, embedder, qa=False, do_full=True):
     evidence = set(inst["answer_session_ids"])
     turns = flatten(inst)
     texts = [t for _, t in turns]
@@ -126,10 +128,10 @@ def eval_instance(inst, k, embedder, qa=False):
         mp = qa_answer(tenet_ctx, inst["question"], inst["question_date"])
         r["rag_qa"] = qa_judge(inst["question"], inst["answer"], rp)
         r["tenet_qa"] = qa_judge(inst["question"], inst["answer"], mp)
-        # full-context ceiling: feed the entire history to the reader
-        full_ctx = "\n".join(f"[{d}] {t}" for d, t in turns)
-        fp = qa_answer(full_ctx, inst["question"], inst["question_date"])
-        r["full_qa"] = qa_judge(inst["question"], inst["answer"], fp)
+        if do_full:  # full-context ceiling (expensive: feeds the entire history)
+            full_ctx = "\n".join(f"[{d}] {t}" for d, t in turns)
+            fp = qa_answer(full_ctx, inst["question"], inst["question_date"])
+            r["full_qa"] = qa_judge(inst["question"], inst["answer"], fp)
     return r
 
 
@@ -140,6 +142,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--qa", action="store_true", help="also run answer-accuracy + context efficiency")
     ap.add_argument("--type", default="", help="filter to one question_type (e.g. knowledge-update)")
+    ap.add_argument("--no-full", action="store_true", help="skip the costly full-context ceiling")
     args = ap.parse_args()
 
     import random
@@ -155,7 +158,7 @@ def main():
     rows = []
     t_start = time.time()
     for i, inst in enumerate(data):
-        r = eval_instance(inst, args.k, embedder, qa=args.qa)
+        r = eval_instance(inst, args.k, embedder, qa=args.qa, do_full=not args.no_full)
         rows.append(r)
         tail = ""
         if args.qa:
@@ -169,12 +172,14 @@ def main():
     print(f"session-level recall@{args.k}:  rag={pct('rag_recall'):.1f}%  tenet={pct('tenet_recall'):.1f}%")
     avg = lambda key: sum(r[key] for r in rows) / n
     if args.qa:
-        print(f"\nanswer accuracy (QA):  full-context={pct('full_qa'):.1f}%  "
+        full_str = f"full-context={pct('full_qa'):.1f}%  " if not args.no_full else ""
+        print(f"\nanswer accuracy (QA):  {full_str}"
               f"rag@{args.k}={pct('rag_qa'):.1f}%  tenet={pct('tenet_qa'):.1f}%")
         # the frontier: accuracy per unit of reader context (tokens ≈ chars/4)
-        for name, acc_k, ctx_k in [("full-context", "full_qa", "full_ctx_chars"),
-                                   ("rag", "rag_qa", "rag_ctx_chars"),
-                                   ("tenet", "tenet_qa", "tenet_ctx_chars")]:
+        frontier = [("rag", "rag_qa", "rag_ctx_chars"), ("tenet", "tenet_qa", "tenet_ctx_chars")]
+        if not args.no_full:
+            frontier = [("full-context", "full_qa", "full_ctx_chars")] + frontier
+        for name, acc_k, ctx_k in frontier:
             toks = avg(ctx_k) / 4
             print(f"  {name:13s} acc={pct(acc_k):5.1f}%  ctx≈{toks:6.0f} tok  "
                   f"acc/1k-tok={pct(acc_k)/max(toks/1000,1e-6):6.1f}")
