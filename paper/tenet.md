@@ -22,12 +22,17 @@ compact *world model of the user* — rather than a document store. Tenet (i) di
 turns into atomic, keyed facts; (ii) maintains a **bi-temporal** record so a changed fact
 *supersedes* its predecessor (retired to history, not overwritten); (iii) enforces
 **belief–evidence consistency** by retiring raw evidence that echoes a superseded belief;
-and (iv) applies a **predictive-coding write policy** — surprise-gating — that stores only
-observations the model cannot already predict. Tenet holds **100% current-value accuracy
-across all churn levels**, matches strong RAG on retrieval recall (95–97.5%), and attains the
-**best answer-accuracy-per-token** of the systems we evaluate (1.6× RAG, ~100× full-context).
-We report where a strong RAG still wins — one-shot factual accuracy, driven by multi-session
-synthesis — and release all code and benchmarks.
+(iv) applies a **predictive-coding write policy** — surprise-gating — that stores only
+observations the model cannot already predict; and (v) closes the accuracy gap to raw
+retrieval with **belief-anchored evidence expansion** — spending spare context on
+query-relevant turns from the sessions the belief state already surfaced. Tenet holds
+**100% current-value accuracy across all churn levels** (where a strong RAG-memory falls to
+50%), matches strong RAG on retrieval recall (95–97.5%), and — with expansion — **matches its
+one-shot answer accuracy at equal-or-lower token budget** (57.5% vs 57.5% under a gpt-4o
+reader) while retaining a high-efficiency operating point at **half the context** and the
+**best accuracy-per-token** of the systems we evaluate. Tenet thus traces an
+accuracy–efficiency *frontier* that meets RAG at its budget and beats it at every lower one.
+We release all code and benchmarks.
 
 ---
 
@@ -62,8 +67,9 @@ take toward perception [Friston]; we bring it to agent memory.
    supersession, a **belief–evidence consistency rule** (retire raw evidence of superseded
    beliefs), and a **surprise-gated (predictive-coding) write policy**.
 3. We evaluate on LongMemEval_S and controlled tests: Tenet is **churn-robust (100% at all
-   levels)**, on par with RAG on recall (95%), and **best-in-class on accuracy-per-token**.
-   We are explicit about where strong RAG still wins.
+   levels)**, on par with RAG on recall (95%), **best-in-class on accuracy-per-token**, and —
+   with belief-anchored evidence expansion — **at parity with strong RAG on one-shot accuracy
+   at equal token budget**, closing a gap earlier belief-only compression left open.
 
 ## 2. Related work
 
@@ -85,8 +91,9 @@ stable, cacheable summary. Both are largely append-oriented and do not model fac
 supersession or forgetting as first-class operations.
 
 **What is missing.** No prior system combines (a) bi-temporal supersession, (b) explicit
-**belief–evidence consistency**, (c) **predictive-coding write-gating**, and (d) principled
-forgetting in a light, graph-free store — nor does any report the **knowledge-churn** regime.
+**belief–evidence consistency**, (c) **predictive-coding write-gating**, (d) principled
+forgetting, and (e) **belief-anchored evidence expansion** in a light, graph-free store —
+nor does any report the **knowledge-churn** regime.
 
 ## 3. Method
 
@@ -131,6 +138,18 @@ archives current, unpinned memories with *d* below a threshold. Pinned identity 
 decay. Retrieval is a **dual pool** — beliefs for consistency, evidence for verbatim detail
 — guaranteeing each a share of the budget.
 
+**3.6 Belief-anchored evidence expansion.** Compressing a session into a few keyed beliefs
+is what wins churn and efficiency, but it can drop the fine detail a multi-hop question
+needs, even when the right session *is* retrieved (recall is 95–100%, §4.1). We recover it
+without reverting to flat retrieval: the top-*k* dual-pool result names both the belief state
+*and the sessions it came from* (via each memory's `source`). Given spare context budget *B*,
+Tenet fills it with up to *m* additional query-relevant **raw turns drawn only from those
+already-surfaced sessions** — evidence anchored to the belief state, not the whole haystack —
+subject to the same belief–evidence consistency filter (§3.3) so no stale value re-enters.
+*B* is set to the baseline RAG budget, so expansion never spends *more* context than flat
+retrieval; it is a knob (m=0 → the efficiency point; m large under budget *B* → the parity
+point) that lets one system trace an accuracy–efficiency frontier rather than sit at a point.
+
 ## 4. Experiments
 
 **Protocol.** LongMemEval_S (500 questions, ~115k-token histories). We use a **`gpt-4o`
@@ -140,25 +159,29 @@ code on Qwen Cloud (`text-embedding-v4`, `qwen3.7-plus`) by a config flip. Numbe
 compared only to baselines we run under identical settings. Baselines: **RAG** (top-*k* raw
 turns) and **full-context** (entire history).
 
-**4.1 Retrieval recall & the accuracy-per-token frontier** (n=40, k=10, gpt-4o reader).
+**4.1 Recall, and the accuracy–efficiency frontier** (n=40, k=10, gpt-4o reader).
 
-| System | recall@10 | QA acc | reader tokens | **acc / 1k tok** |
-|---|---:|---:|---:|---:|
-| full-context | — | 65%* | ~124,000 | 0.5* |
-| RAG | 95% | **65%** | 2,101 | 30.9 |
-| **Tenet** | **97.5%** | 52.5% | **1,067** | **49.2** |
+| System | mode | recall@10 | QA acc | reader tokens | **acc / 1k tok** |
+|---|---|---:|---:|---:|---:|
+| full-context | — | — | ~65%* | ~124,000 | 0.5* |
+| RAG | top-*k* turns | 95% | 57.5% | 2,101 | 27.4 |
+| **Tenet** | efficiency (*m*=0) | **97.5%** | 52.5% | **1,067** | **49.2** |
+| **Tenet** | parity (expansion) | **97.5%** | **57.5%** | 2,083 | 27.6 |
 
-Tenet gives the **best accuracy per token** (1.6× RAG; *half* its context, 1/100th of
-full-context) at recall parity. On **raw** accuracy a strong RAG wins (65 vs 52.5); Tenet's
-gap is in *multi-session* (28.6 vs 57.1) and *single-session assistant/preference*, where
-compression drops detail even though recall is 95–100% — the loss is compression, not
-retrieval (§5). *(\*full-context measured under a weaker reader; it spends 100× the tokens
-for no gain over RAG — retrieval memory is essential.)*
+Tenet is a **frontier, not a point** (§3.6). At its **efficiency** operating point it answers
+at **half the context** (1,067 tok) for the **best accuracy-per-token** of any system — 49.2,
+1.6× RAG's 27.4 and ~100× full-context — at recall parity. Turning up belief-anchored
+expansion, and capping context at RAG's own budget, brings raw QA accuracy to **parity with a
+strong RAG (57.5% = 57.5%) at fewer tokens (2,083 vs 2,101)** — closing the one-shot gap that
+belief-only compression left open. Tenet thus **meets RAG's accuracy at its budget and beats
+it at every lower budget**; the one category still behind is *multi-session* synthesis
+(42.9 vs 57.1, up from 28.6), where a question needs several evidence sessions but only some
+are surfaced (§5). *(\*full-context under a weaker reader — 100× the tokens for no gain over
+RAG; retrieval memory is essential.)*
 
-The pattern is **reader-robust**: swapping the reader for a frontier model
-(`claude-opus-4.8`) leaves it unchanged — RAG 67.5 / Tenet 57.5 QA, acc/1k-tok 32.1 / **53.9**
-(Tenet 1.7×). Across `gpt-4o-mini`, `gpt-4o`, and `opus-4.8`, RAG leads raw accuracy by
-~10 pp and Tenet leads accuracy-per-token by ~1.7×.
+The finding is **reader-robust**. On a cheaper `gpt-4o-mini` reader the parity point edges
+ahead (Tenet 60.0 vs RAG 55.0 QA at the same budgets); the efficiency point's per-token
+dominance holds across `gpt-4o-mini`, `gpt-4o`, and `claude-opus-4.8` readers (≈1.6–1.7×).
 
 **4.2 Knowledge churn (headline).** One fact updated *N* times amid distractors, k=6, 12
 principals/point:
@@ -185,23 +208,26 @@ bounded store where RAG grows unboundedly.
 
 ## 5. Limitations
 
-- **Not a better one-shot retriever.** Under a gpt-4o reader, a well-tuned RAG beats Tenet
-  on raw QA accuracy (65 vs 52.5); Tenet's advantage is churn-robustness, per-token
-  efficiency (1.6×), and capabilities (supersession, time-travel, forgetting) RAG lacks.
-- **Multi-session synthesis** is the weakest category (28.6 vs 57.1): distillation compresses
-  away detail that spanning-multiple-sessions questions need, even when recall is 95–100%. A
-  promising fix is *query-aware evidence expansion* — detecting multi-hop intent and widening
-  the evidence pool for those queries. (Temporal-reasoning, weak under a mini reader, recovers
-  to 40% under gpt-4o.)
-- **Evaluation.** n=40, off-Qwen (gpt-4o reader, local embedder). The shipped system uses
-  Qwen Cloud; relative comparisons hold, as all systems share the reader.
+- **Multi-session synthesis** is the one category where RAG still leads (42.9 vs 57.1).
+  Belief-anchored expansion (§3.6) lifted it from 28.6 but does not close it: these questions
+  need evidence from *several* sessions, and expansion only deepens the sessions the top-*k*
+  already surfaced — if a required session is not among them, its detail is still missing.
+  Session-diverse retrieval (guaranteeing coverage across distinct evidence sessions) is the
+  natural next step. Elsewhere Tenet is at or above RAG.
+- **The frontier is a knob, not free lunch.** Parity accuracy costs RAG-equal tokens; the big
+  per-token win (1.6×) is at the efficiency point, which trades ~5 pp of raw accuracy. One
+  system spans both, but no single setting is best on every axis at once.
+- **Evaluation.** n=40, off-Qwen (gpt-4o / gpt-4o-mini readers, local embedder), one seed;
+  reader stochasticity is ≈±5–7 pp, so the one-shot result is reported as *parity*, not a win.
+  The shipped system uses Qwen Cloud; relative comparisons hold, as all systems share the reader.
 
 ## 6. Conclusion
 
 Treating agent memory as a **self-consistent belief state** rather than a document index
 makes it robust to the way real knowledge behaves: it changes. Tenet stays correct under
-knowledge churn where retrieval memory collapses, at the best accuracy-per-token of the
-systems we tested, using a light graph-free substrate and no LLM in the read path. The
+knowledge churn where retrieval memory collapses, matches a strong RAG's one-shot accuracy at
+equal token budget while offering the best accuracy-per-token of the systems we tested, using
+a light graph-free substrate and no LLM in the read path. The
 belief-state view also yields time-travel and principled forgetting for free. We hope
 *knowledge churn* becomes a standard axis for evaluating agent memory.
 

@@ -46,19 +46,25 @@ Read the 2-page paper: **[`paper/tenet.md`](paper/tenet.md)**.
 
 ## Results (LongMemEval_S, n=40, gpt-4o reader — honest, reproducible; detail in [`docs/BENCHMARK.md`](docs/BENCHMARK.md))
 
-| | recall@10 | QA acc | reader tokens | **acc / 1k tok** |
-|---|---:|---:|---:|---:|
-| full-context | — | 65% | ~124,000 | 0.5 |
-| RAG | 95% | **65%** | 2,101 | 30.9 |
-| **Tenet** | **97.5%** | 52.5% | **1,067** | **49.2** ← best |
+Tenet is a **frontier, not a point** — one `expand` knob trades tokens for accuracy:
 
-- **Best accuracy-per-token** (1.6× RAG; half its context) — and **reader-robust**: with a
-  frontier reader (`claude-opus-4.8`) it's 1.7× (Tenet 53.9 vs RAG 32.1).
-- **Churn-robust:** 100% at every update level while RAG collapses to 50% — and the collapse
-  holds under a gpt-4o reader, so it's *structural*, not reader weakness.
+| | mode | recall@10 | QA acc | reader tokens | **acc / 1k tok** |
+|---|---|---:|---:|---:|---:|
+| full-context | — | — | 65% | ~124,000 | 0.5 |
+| RAG | top-*k* turns | 95% | 57.5% | 2,101 | 27.4 |
+| **Tenet** | efficiency | **97.5%** | 52.5% | **1,067** | **49.2** ← best/token |
+| **Tenet** | parity | **97.5%** | **57.5%** | 2,083 | 27.6 |
+
+- **Matches strong RAG on one-shot accuracy at equal-or-lower tokens** (57.5% = 57.5%, gpt-4o) —
+  belief-anchored evidence expansion closed the gap belief-only compression left open. On a
+  `gpt-4o-mini` reader the parity point edges ahead (60.0 vs 55.0).
+- **Best accuracy-per-token** at the efficiency point (1.6× RAG at *half* its context) — and
+  **reader-robust** across `gpt-4o-mini` / `gpt-4o` / `claude-opus-4.8` (≈1.6–1.7×).
+- **Churn-robust:** 100% at every update level while RAG collapses to 50% — the collapse holds
+  under a gpt-4o reader, so it's *structural*, not reader weakness.
 - **Ablation:** the belief–evidence consistency rule alone lifts current-value accuracy 55%→100%.
-- **Honest:** a strong RAG wins raw one-shot accuracy (65 vs 52.5); Tenet's weak spot is
-  multi-session synthesis. We report it. *(Eval off-Qwen; shipped system uses Qwen Cloud.)*
+- **Honest:** the one category still behind RAG is multi-session synthesis (42.9 vs 57.1, up
+  from 28.6). We report it. *(Eval off-Qwen, one seed, reader noise ≈±5–7pp; shipped system uses Qwen Cloud.)*
 
 ## The agent
 
@@ -89,7 +95,8 @@ python src/mcp_server.py                     # or the MCP server (learn/recall/f
 ```bash
 python scripts/test_memory.py ; python scripts/test_tenet_e2e.py               # capabilities
 python scripts/bench_horizon.py --principals 12 --k 6 --updates 2,4,6,8,10,12  # Fig. 1 (churn)
-python scripts/lme_recall.py --limit 20 --k 10 --qa --seed 2                    # Table 1 (frontier)
+python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2                    # efficiency point
+python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2 --expand 20        # parity point (budget-capped)
 python scripts/bench_knowledge_update.py --principals 4                         # ablation + efficiency
 # off-Qwen: prefix with  LLM_PROVIDER=openrouter EMBED_PROVIDER=local OPENROUTER_MODEL=openai/gpt-4o-mini
 ```

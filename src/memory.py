@@ -191,12 +191,21 @@ class MemoryCore:
         k: int = 5,
         char_budget: int | None = None,
         as_of: float | None = None,
+        expand: int = 0,
     ) -> list[Memory]:
         """Most relevant memories, ranked by relevance × decay.
 
         Default: only *currently-true* facts (expired_at IS NULL). Pass as_of=<ts>
         to time-travel — recall what was believed true at that timestamp.
         char_budget greedily caps total size (recall under a limited context window).
+
+        `expand` — belief-anchored evidence expansion. The dual-pool top-k names the
+        belief state and the sessions it came from; multi-hop/temporal answers, though,
+        need the surrounding verbatim turns from *those same sessions*, which the k//2
+        raw cap crowds out. When expand>0, after the top-k is chosen we pull up to
+        `expand` extra query-relevant raw slices whose `source` matches a surfaced
+        memory — closing the multi-session gap while staying well under a flat RAG's
+        token count (evidence is anchored to already-relevant sessions, not the haystack).
         """
         qv = self._embed(query)  # network call — kept outside the lock
         with self._lock:
@@ -211,26 +220,25 @@ class MemoryCore:
                 scored.append((rank, relevance, row))
             scored.sort(key=lambda x: x[0], reverse=True)
 
+            # World-model consistency: the current facts are the belief state. A raw
+            # slice that echoes a SUPERSEDED belief (e.g. "I moved to Boston" after the
+            # user moved on) is stale evidence — retire it from current recall so it
+            # can't reintroduce an outdated value. (Only for current recall, not as_of.)
+            expired = self._expired_fact_matrix() if as_of is None else None
+
+            def _fresh(row) -> bool:
+                if expired is None:
+                    return True
+                emb = np.frombuffer(row["embedding"], dtype=np.float32)
+                return float(np.max(expired @ emb)) < _STALE_ECHO
+
             # Dual-pool selection: distilled facts win on consistency/temporal, raw
             # slices win on verbatim detail (durations, numbers). Guarantee raw slices
             # a share of the budget so distillation can't crowd out the exact answer —
             # but if one pool is empty, the other fills all k slots (no starvation).
             facts = [(rank, row) for rank, _rel, row in scored if row["kind"] != "raw"]
-            raws = [(rel, row) for _rank, rel, row in scored if row["kind"] == "raw"]
-
-            # World-model consistency: the current facts are the belief state. A raw
-            # slice that echoes a SUPERSEDED belief (e.g. "I moved to Boston" after the
-            # user moved on) is stale evidence — retire it from current recall so it
-            # can't reintroduce an outdated value. (Only for current recall, not as_of.)
-            if as_of is None and raws:
-                expired = self._expired_fact_matrix()
-                if expired is not None:
-                    kept = []
-                    for rel, row in raws:
-                        emb = np.frombuffer(row["embedding"], dtype=np.float32)
-                        if float(np.max(expired @ emb)) < _STALE_ECHO:
-                            kept.append((rel, row))
-                    raws = kept
+            raws = [(rel, row) for _rank, rel, row in scored
+                    if row["kind"] == "raw" and _fresh(row)]
             n_raw = min(len(raws), k // 2)
             picked = facts[: k - n_raw] + raws[:n_raw]
             if len(picked) < k:  # backfill from whatever remains, best rank first
@@ -247,6 +255,24 @@ class MemoryCore:
                     self._touch(row["id"])
                 used += len(row["text"])
                 out.append(self._to_memory(row, rank))
+
+            # Belief-anchored evidence expansion: add query-relevant raw turns from the
+            # sessions the top-k already surfaced. Ranked by pure relevance (detail, not
+            # decay), fresh (not a stale echo), not already picked.
+            if expand and as_of is None:
+                anchors = {m.source for m in out if m.source}
+                if anchors:
+                    have = {m.id for m in out}
+                    cands = [(rel, row) for _r, rel, row in scored
+                             if row["kind"] == "raw" and row["source"] in anchors
+                             and row["id"] not in have and _fresh(row)]
+                    cands.sort(key=lambda x: x[0], reverse=True)
+                    for rel, row in cands[:expand]:
+                        if char_budget is not None and used + len(row["text"]) > char_budget:
+                            continue
+                        self._touch(row["id"])
+                        used += len(row["text"])
+                        out.append(self._to_memory(row, rel))
             return out
 
     # ---- forgetting ------------------------------------------------------

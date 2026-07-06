@@ -28,7 +28,7 @@ class MemoryAgent:
 
     def respond(self, user_msg: str, *, k: int = 8) -> dict:
         """Recall relevant memory → answer with Qwen → learn from what the user said."""
-        mems = self.m.recall(user_msg, k=k)
+        mems = self.m.recall(user_msg, k=k, expand=4)
         ctx = "\n".join(f"- {x.text}" for x in mems) or "(nothing yet)"
         reply = config.chat(
             [{"role": "system", "content": _SYS.format(memories=ctx)},

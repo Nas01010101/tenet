@@ -69,7 +69,7 @@ def qa_judge(question, gold, pred):
                     max_tokens=4).lower().startswith("y")
 
 
-def eval_instance(inst, k, embedder, qa=False, do_full=True):
+def eval_instance(inst, k, embedder, qa=False, do_full=True, expand=0):
     evidence = set(inst["answer_session_ids"])
     turns = flatten(inst)
     texts = [t for _, t in turns]
@@ -113,7 +113,11 @@ def eval_instance(inst, k, embedder, qa=False, do_full=True):
         m.core.store(text, kind="raw", salience=0.35, source=sid, _vec=tv)
 
     t0 = time.time()
-    hits = m.core.recall(inst["question"], k=k)
+    # Budget-bounded expansion: cap Tenet's context at RAG's own size so the
+    # accuracy comparison is at EQUAL-OR-LOWER tokens (never buying accuracy with
+    # more context than the baseline). expand fills that budget with anchored evidence.
+    budget = len(rag_ctx) if expand else None
+    hits = m.core.recall(inst["question"], k=k, expand=expand, char_budget=budget)
     tenet_lat = time.time() - t0
     tenet_ok = recall_hit([h.source for h in hits], evidence)
     tenet_ctx = "\n".join(f"- {h.text}" for h in hits)
@@ -143,6 +147,9 @@ def main():
     ap.add_argument("--qa", action="store_true", help="also run answer-accuracy + context efficiency")
     ap.add_argument("--type", default="", help="filter to one question_type (e.g. knowledge-update)")
     ap.add_argument("--no-full", action="store_true", help="skip the costly full-context ceiling")
+    ap.add_argument("--expand", type=int, default=0,
+                    help="belief-anchored evidence expansion: extra query-relevant raw slices "
+                         "from surfaced sessions (0=off)")
     args = ap.parse_args()
 
     import random
@@ -158,7 +165,8 @@ def main():
     rows = []
     t_start = time.time()
     for i, inst in enumerate(data):
-        r = eval_instance(inst, args.k, embedder, qa=args.qa, do_full=not args.no_full)
+        r = eval_instance(inst, args.k, embedder, qa=args.qa, do_full=not args.no_full,
+                          expand=args.expand)
         rows.append(r)
         tail = ""
         if args.qa:

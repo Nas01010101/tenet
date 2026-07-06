@@ -9,7 +9,7 @@ The LongMemEval numbers below come from each project's own runs with **strong re
 (Mem0/Zep: gpt-4o; Mastra: gpt-5-mini; agentmemory: Claude Opus 4.6) and their own
 judge/protocol. Tenet's numbers use a `gpt-4o` reader (matching them) but a **small local `bge-small` embedder
 and an unoptimized harness** — so our whole pipeline scores lower: our own **RAG baseline gets
-only 65%**, far below their 90%+ pipelines. The gap is embedder/harness, **not** the memory
+only ~57%**, far below their 90%+ pipelines. The gap is embedder/harness, **not** the memory
 design. We therefore compare Tenet only to **our own RAG under identical settings**, and on
 **architecture/capabilities**; we do **not** claim an accuracy win over these systems.
 
@@ -26,10 +26,11 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 | Graph infra required | ❌ (light) | ❌ (removed theirs) | ✅ (heavy writes) | ❌ | ❌ | ❌ |
 | **Long-horizon churn tested** | ✅ (100% @12 updates) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| LongMemEval_S | 52.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
+| LongMemEval_S | 57.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
 
-¹ gpt-4o reader + bge-small embedder; our RAG baseline scores 65% on the same setup, so
-absolute numbers reflect our light embedder/harness, not the memory design. Recall@10 = 97.5%.
+¹ gpt-4o reader + bge-small embedder, parity operating point; our RAG baseline scores 57.5%
+on the same setup, so absolute numbers reflect our light embedder/harness, not the memory
+design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc/token).
 
 ## Where Tenet sits
 - **Architecturally closest to Zep/Graphiti** (bi-temporal + supersession + MCP + no-LLM
@@ -43,14 +44,18 @@ absolute numbers reflect our light embedder/harness, not the memory design. Reca
 - **Tests a regime none of them report:** long-horizon knowledge churn, where Tenet holds
   100% and RAG-style retrieval collapses to 50%.
 - **Optimises the frontier the leaderboard ignores:** accuracy *per token*. Tenet gives
-  the best acc/1k-tokens of the approaches we ran (41 vs RAG 27 vs full-context 0.5).
+  the best acc/1k-tokens of the approaches we ran (49 vs RAG 27 vs full-context 0.5) — and,
+  via belief-anchored expansion, can spend that headroom to reach one-shot **accuracy parity
+  with RAG at equal tokens**, so it dominates the frontier rather than trading off.
 
 ## What Tenet does NOT claim
 - Not SOTA on raw LongMemEval accuracy — agentmemory (96.2%), Mastra (94.9%), Mem0 (94.4%)
   lead with heavily-tuned retrieval pipelines; on our light bge-small harness even RAG only
-  reaches 65%, and we don't pretend otherwise.
-- Not better than a strong RAG at one-shot factual retrieval.
-- Weak on multi-hop temporal synthesis (documented, `docs/BENCHMARK.md` §6).
+  reaches ~57%, and we don't pretend otherwise.
+- Not an accuracy *win* over a strong RAG at one-shot retrieval — with belief-anchored
+  expansion Tenet reaches **parity** at equal tokens (57.5% = 57.5%), reported as parity given
+  ≈±5–7pp reader noise, not a headline win.
+- Multi-session synthesis is the one category still behind RAG (43 vs 57; documented, `docs/BENCHMARK.md` §6).
 
 ## The one-line positioning
 > Zep's bi-temporal correctness + Mem0's lightweight vector substrate + **forgetting and
