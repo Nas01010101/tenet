@@ -1,0 +1,25 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      EMBED_PROVIDER: local        # bge-small — no API keys needed
+      LLM_PROVIDER: openrouter     # never touched: these tests make no chat calls
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-bge-small-${{ runner.os }}
+      - run: pip install -q numpy sentence-transformers
+      - name: capability tests (deterministic, no LLM)
+        run: python scripts/test_memory.py

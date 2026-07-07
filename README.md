@@ -1,16 +1,28 @@
 <div align="center">
 
-# Tenet
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/banner-dark.svg">
+  <img src="docs/brand/banner-light.svg" alt="Tenet — agent memory as a self-consistent world model" width="820">
+</picture>
 
-### Agent Memory as a Self-Consistent World Model
+<p>
+  <a href="paper/tenet.pdf"><b>📄 Paper</b></a> ·
+  <a href="docs/BENCHMARK.md"><b>Benchmarks</b></a> ·
+  <a href="docs/COMPARISON.md"><b>vs Mem0 / Zep / Letta</b></a> ·
+  <a href="src/mcp_server.py"><b>MCP server</b></a> ·
+  <a href="scripts/demo_agent.py"><b>Demo</b></a>
+</p>
 
-[![paper](https://img.shields.io/badge/paper-Tenet-b31b1b.svg)](paper/tenet.md)
+[![tests](https://github.com/Nas01010101/tenet/actions/workflows/test.yml/badge.svg)](https://github.com/Nas01010101/tenet/actions/workflows/test.yml)
+[![paper](https://img.shields.io/badge/paper-PDF-b31b1b.svg)](paper/tenet.pdf)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.10%2B-3776ab.svg?logo=python&logoColor=white)](#quickstart)
 [![Qwen Cloud](https://img.shields.io/badge/built%20on-Qwen%20Cloud-6a5acd.svg)](https://qwencloud-hackathon.devpost.com)
-[![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](#)
+[![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/mcp_server.py)
+[![stars](https://img.shields.io/github/stars/Nas01010101/tenet?style=flat&color=8b7cf8)](https://github.com/Nas01010101/tenet/stargazers)
 
 *A memory that stays true as the world changes.* Built for the
-[Global AI Hackathon with Qwen Cloud](https://qwencloud-hackathon.devpost.com) — **Track 1**.
+[Global AI Hackathon with Qwen Cloud](https://qwencloud-hackathon.devpost.com) — **Track 1: MemoryAgent**.
 
 </div>
 
@@ -21,6 +33,16 @@ abstraction for an agent modeling a *changing* world: as a fact is updated over 
 interaction — **knowledge churn** — stale versions crowd the retrieval budget and the agent
 answers with an out-of-date value. **Tenet** reframes memory as a **self-consistent belief
 state** — a compact *world model of the user* — and stays correct where retrieval collapses.
+
+<div align="center">
+
+<img src="docs/brand/demo.gif" alt="Tenet assistant staying correct as facts change — supersession, time-travel, forgetting" width="740">
+
+<sub>Real recorded session: facts change, the belief state supersedes them, time-travel recalls what was true before — and the read path never calls an LLM.</sub>
+
+</div>
+
+## The failure mode nobody benchmarks
 
 <div align="center">
 
