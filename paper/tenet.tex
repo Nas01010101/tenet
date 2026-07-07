@@ -243,6 +243,20 @@ best is $\le$7. Accuracy barely degrades with haystack length (SH $89\!\to\!81$ 
 aggregation must re-derive at every read. Multi-hop still degrades with length
 ($42\!\to\!20$); reported honestly.
 
+\subsection{Accurate retrieval at zero ingestion cost: MemoryAgentBench AR}
+On MAB's other core competency ($\sim$2{,}000 questions, 197K--534K-token contexts;
+official per-benchmark metrics: SubEM for RULER-QA, the official LLM-judge for
+LongMemEval(S*), choice accuracy for EventQA; matched gpt-4o-mini reader), Tenet with
+\textbf{zero-LLM ingestion} (date-aware structured chunks + embeddings only) averages
+\textbf{59.3} --- second only to HippoRAG-v2 ~\cite{hipporag2} (65.1), which runs LLM
+OpenIE over every context token at ingestion, and 20+ points above Mem0 (32.6),
+Zep (37.5) and MemGPT. Per sub-benchmark: EventQA \textbf{70.7} ($n{=}1{,}500$; Wilson CI
+$[68.3, 72.9]$ excludes HippoRAG-v2's 67.6), RULER SH-QA 75.0 (parity with 76),
+LME(S*) 46.3 vs 50.7, and RULER MH-QA 45.0 vs 66 --- the honest loss:
+Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
+narrative text. Together with \S4.5, Tenet leads or ties the published field on two of
+MAB's four competencies while being the only system whose ingestion never calls an LLM.
+
 \section{Limitations}
 \textbf{Multi-session synthesis} is the one category where RAG still leads ($42.9$ vs $57.1$).
 Belief-anchored expansion lifted it from $28.6$ but does not close it: these questions need
@@ -274,6 +288,7 @@ evaluating agent memory.
 \bibitem{memstrata} \emph{Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agents over Evolving Knowledge}. arXiv:2606.26511, 2026.
 \bibitem{engram} \emph{Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents}. arXiv:2606.09900, 2026.
 \bibitem{toki} \emph{TOKI: A Bitemporal Operator Algebra for Contradiction Resolution in LLM-Agent Persistent Memory}. arXiv:2606.06240, 2026.
+\bibitem{hipporag2} Guti\'errez et al. \emph{From RAG to Memory: Non-Parametric Continual Learning for Large Language Models}. arXiv:2502.14802, 2025.
 \bibitem{friston} Friston. \emph{The free-energy principle: a unified brain theory?} Nat.\ Rev.\ Neurosci., 2010.
 \end{thebibliography}
 

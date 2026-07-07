@@ -102,6 +102,13 @@ Mem0 18%, MemGPT 28%** single-hop; **≤7%** multi-hop for all 22 systems):
 backbone and *zero-LLM* deterministic ingestion.** SubEM + official prompt verbatim; Wilson
 CIs; no length collapse (SH ≥81% at every haystack size). Details: [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §6.
 
+**MAB Accurate-Retrieval** (~2,000 questions over 197K–534K-token contexts, official
+per-benchmark metrics, matched gpt-4o-mini reader): AR average **59.3** — second only to
+HippoRAG-v2 (65.1, which runs LLM OpenIE over every context token; Tenet ingests with
+**embeddings only**), 20+ points above Mem0 (32.6) / Zep (37.5) / MemGPT, and **beats the
+field on EventQA (70.7 vs 67.6, CI excludes)**. RULER MH is the honest loss (45 vs 66).
+Details: [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §7.
+
 ## The agent
 
 Tenet ships as a personal assistant ([`src/agent.py`](src/agent.py)) on Qwen Cloud:
