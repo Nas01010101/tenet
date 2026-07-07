@@ -34,7 +34,7 @@
 5. **Latency is now first-class** (LME-V2 LAFS). No-LLM-in-the-read-path (Zep, Mastra) is the frontier-correct choice.
 
 ## 4. Where OUR current build sits
-`src/memory.py` today = **vector (Qwen embed) + cosine + decay-forgetting + overwrite-with-newer supersession + budgeted recall**, over MCP+HTTP.
+`src/tenet/memory.py` today = **vector (Qwen embed) + cosine + decay-forgetting + overwrite-with-newer supersession + budgeted recall**, over MCP+HTTP.
 - Honest placement: architecturally ~**Supermemory / early-Mem0 tier** (vector-first, single timestamp). Our "100% on 8 synthetic facts" is a **toy** number — NOT comparable to LongMemEval and must not be presented as SOTA.
 - **Gaps vs frontier:** no bi-temporal model, no write-time distillation, no stable-cacheable working set, no real-benchmark number, no latency measurement.
 - **What we already do that the leaderboard leaders DON'T:** principled **forgetting** + **context-budget recall**. Most SOTA systems are append-only recall-maximisers.

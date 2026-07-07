@@ -1,5 +1,5 @@
 """Minimal chat-loop assistant wired with Tenet as its memory — condensed
-from Tenet's own reference assistant (src/agent.py in the repo).
+from Tenet's own reference assistant (src/tenet/agent.py in the repo).
 
 Pattern: recall() before every turn to ground the system prompt in what's
 remembered -> call YOUR LLM -> ingest() the user's turn so new/changed facts
@@ -25,7 +25,7 @@ What you remember about the user:
 
 def call_llm(messages: list[dict]) -> str:
     """Swap this for your own client. Shown here with the OpenAI SDK pointed
-    at Qwen Cloud, matching the shipped Tenet product (see src/config.py)."""
+    at Qwen Cloud, matching the shipped Tenet product (see src/tenet/config.py)."""
     import os
 
     from openai import OpenAI

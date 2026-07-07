@@ -1,6 +1,6 @@
 # Using Tenet as an MCP server
 
-Tenet ships an MCP server (`src/mcp_server.py`) that exposes the memory core as
+Tenet ships an MCP server (`src/tenet/mcp_server.py`) that exposes the memory core as
 tools, so any MCP client — Claude Desktop, an IDE, another agent — gets
 persistent, self-managing memory without writing any glue code. This is a doc
 instead of a runnable script because the useful part is the config snippet and

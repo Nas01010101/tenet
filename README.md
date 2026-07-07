@@ -80,6 +80,11 @@ Read the 2-page paper: **[`paper/tenet.md`](paper/tenet.md)**.
 
 ## Results (LongMemEval_S, n=40, gpt-4o reader — honest, reproducible; detail in [`docs/BENCHMARK.md`](docs/BENCHMARK.md))
 
+> **Note:** the shipped product runs **entirely on Qwen Cloud** (`text-embedding-v4`,
+> `qwen3.6-flash`, `qwen3.7-plus`). `gpt-4o`/`gpt-4o-mini` appear below **only as frozen
+> evaluation readers**, to match the exact protocol Mem0/Zep/MemoryAgentBench publish
+> against — apples-to-apples with the published leaderboards.
+
 Tenet is a **frontier, not a point** — one `expand` knob trades tokens for accuracy:
 
 | | mode | recall@10 | QA acc | reader tokens | **acc / 1k tok** |
