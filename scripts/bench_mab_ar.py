@@ -40,6 +40,8 @@ def lme_chunks(context: str) -> list[str] | None:
         items = ast.literal_eval(context)
     except Exception:
         return None
+    LME_SESSION_CHARS = 1200      # v3 (2400) regressed: fewer retrieval units → less
+                                  # session diversity in top-k. 1200 = the v2 optimum.
     out, cur, date = [], "", ""
     def flush():
         nonlocal cur
@@ -53,7 +55,7 @@ def lme_chunks(context: str) -> list[str] | None:
         elif isinstance(it, list):
             for t in it:
                 line = f"[{date}] {t.get('role', '?')}: {t.get('content', '')}".strip()
-                if len(cur) + len(line) > CHUNK_CHARS:
+                if len(cur) + len(line) > LME_SESSION_CHARS:
                     flush()
                 # a single long turn becomes its own (oversize) chunk rather than
                 # being split away from its date prefix
@@ -76,7 +78,10 @@ def build_store(cache_id: str, chs: list[str]) -> tuple[Tenet, np.ndarray]:
     """Zero-LLM ingestion: every chunk is a raw slice; embeddings cached."""
     dbp, npz = CACHE / f"{cache_id}.db", CACHE / f"{cache_id}.npz"
     if dbp.exists() and npz.exists():
-        return Tenet(dbp), np.load(npz)["v"]
+        mat = np.load(npz)["v"]
+        if len(mat) != len(chs):
+            raise RuntimeError(f"cache {cache_id}: {len(mat)} vectors != {len(chs)} chunks")
+        return Tenet(dbp), mat
     m = Tenet(dbp)
     vecs = []
     B = 256
@@ -159,6 +164,10 @@ def main():
     ap.add_argument("--hops", type=int, default=2)
     ap.add_argument("--expand", type=int, default=20)
     ap.add_argument("--dump", default="")
+    ap.add_argument("--diverse", type=int, default=0,
+                    help="session-diverse recall (tenet arm, LME cells): cap hits per "
+                         "session at this value so top-k must cover distinct sessions; "
+                         "targets multi-session synthesis misses")
     ap.add_argument("--dump-preds", default="",
                     help="write EVERY prediction (both arms) to this JSONL so scoring "
                          "can be redone later — e.g. LLM-judge once a judge is available")
@@ -181,9 +190,10 @@ def main():
         if want and not any(source.startswith(w) for w in want):
             continue
         chs = lme_chunks(ex["context"]) if source.startswith("longmemeval") else None
-        ver = "v2" if chs else ""            # structured chunks get their own cache
         chs = chs or chunks_of(ex["context"])
-        cache_id = "ar" + ver + hashlib.md5(ex["context"].encode()).hexdigest()[:12]
+        # cache is keyed by the CHUNK LIST itself, not the raw context — a chunker
+        # change can never silently pair stale embeddings with fresh chunks
+        cache_id = "ar" + hashlib.md5("\x00".join(chs).encode()).hexdigest()[:12]
         print(f"\n=== {source}: {len(chs)} chunks (cache {cache_id}) ===", flush=True)
         m, mat = build_store(cache_id, chs)
 
@@ -195,8 +205,25 @@ def main():
             qv = np.asarray(m.core.embed_batch([q])[0])
             top = sorted(np.argsort(-(mat @ qv))[: args.k])
             rag_pool = "\n---\n".join(chs[i] for i in top)
-            hits = m.core.recall(q, k=args.k, expand=args.expand, hops=args.hops,
-                                 char_budget=len(rag_pool))
+            if args.diverse and source.startswith("longmemeval"):
+                # over-fetch, then greedy-fill capping hits per session (the [date]
+                # prefix identifies the session) — coverage across sessions beats
+                # depth within one for multi-session synthesis questions
+                pool_hits = m.core.recall(q, k=4 * args.k, expand=args.expand,
+                                          hops=args.hops)
+                seen: dict[str, int] = {}
+                hits, budget = [], len(rag_pool)
+                for h in pool_hits:
+                    sess = h.text.split("]", 1)[0]
+                    if seen.get(sess, 0) >= args.diverse:
+                        continue
+                    if sum(len(x.text) for x in hits) + len(h.text) > budget:
+                        break
+                    seen[sess] = seen.get(sess, 0) + 1
+                    hits.append(h)
+            else:
+                hits = m.core.recall(q, k=args.k, expand=args.expand, hops=args.hops,
+                                     char_budget=len(rag_pool))
             tenet_pool = "\n---\n".join(h.text for h in hits)
             read = answer_choice if source.startswith("eventqa") else answer_extract
             rp = read(rag_pool, q)
