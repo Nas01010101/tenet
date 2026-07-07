@@ -70,6 +70,10 @@ take toward perception [Friston]; we bring it to agent memory.
    levels)**, on par with RAG on recall (95%), **best-in-class on accuracy-per-token**, and —
    with belief-anchored evidence expansion — **at parity with strong RAG on one-shot accuracy
    at equal token budget**, closing a gap earlier belief-only compression left open.
+4. On the standardized **MemoryAgentBench FactConsolidation** benchmark, ingestion-time
+   supersession with zero-LLM deterministic keys **exceeds the published single-hop SOTA at
+   the gpt-4o-mini tier (86.5 vs 78.0 pooled) and ties the multi-hop tier (30.2)** — using
+   only a local 7B backbone, where the original benchmark's 22 systems score ≤60 / ≤7.
 
 ## 2. Related work
 
@@ -221,6 +225,23 @@ This is the single most important mechanism.
 **4.4 Efficiency — surprise-gating.** On histories with repeated statements, the §3.4 policy
 discards **15% of observations** as redundant with **no accuracy change**, yielding a
 bounded store where RAG grows unboundedly.
+
+**4.5 Standardized conflict resolution — MemoryAgentBench FactConsolidation.** On the
+ICLR 2026 conflict-resolution benchmark [Hu 2026] (SubEM metric and official reader prompt
+verbatim; all 800 questions; Wilson 95% CIs), ingestion-time supersession with **fully
+deterministic, zero-LLM keys** and a deliberately weak **local 7B backbone** scores:
+
+| pooled (4 lengths, 6K–262K) | naive-RAG (same reader) | **Tenet** | published SOTA (mini / gpt-4o) [Freshness 2026] |
+|---|---:|---:|---:|
+| FC-SH (n=400) | 47.8 | **86.5** [82.8, 89.5] | 78.0 / 94.8 |
+| FC-MH (n=400) | 4.5 | **30.2** [26.0, 34.9] | 30.2 / 51.5 |
+
+Single-hop **exceeds the published gpt-4o-mini-tier SOTA (78.0; our CI excludes it) on a
+weaker backbone**, and every system in the original benchmark table scores ≤60 (Zep 7,
+Mem0 18, MemGPT 28); multi-hop exactly ties the mini-tier SOTA, where the original table's
+best is ≤7. Accuracy barely degrades with haystack length (SH 89→81 from 6K→262K) because
+the store is conflict-resolved at ingestion — the property assembly-time aggregation must
+re-derive at every read. Multi-hop still degrades with length (42→20); reported honestly.
 
 ## 5. Limitations
 

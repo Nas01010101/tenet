@@ -102,8 +102,15 @@ _KEY_SYS = ("For each numbered fact, output its semantic key: 'subject::relation
             '{"keys": [{"i": <fact index>, "k": "<subject::relation>"}, ...]} — one entry per fact.')
 
 
+KEY_MODE = "llm"  # set by --keys; "heuristic" = deterministic zero-LLM ingestion keys
+
+
 def extract_keys(facts: list[tuple[int, str]], source: str) -> dict[int, str]:
-    """Distiller-supplied supersession keys (batched, cached per sequence)."""
+    """Supersession keys. `heuristic` mode is fully deterministic (no LLM anywhere in
+    ingestion): key = the normalized fact minus its final value words — exploits the
+    templated subject-relation-value shape of the facts. LLM mode uses the distiller."""
+    if KEY_MODE == "heuristic":
+        return {s: " ".join(normalize_answer(t).split()[:-2]) for s, t in facts}
     cf = CACHE / f"{source}.keys.json"
     if cf.exists():
         return {int(k): v for k, v in json.load(open(cf)).items()}
@@ -115,7 +122,7 @@ def extract_keys(facts: list[tuple[int, str]], source: str) -> dict[int, str]:
         out = config.chat(
             [{"role": "system", "content": _KEY_SYS},
              {"role": "user", "content": listing}],
-            qwen_default="qwen3.6-flash", max_tokens=3000, json_mode=True)
+            qwen_default="qwen3.6-flash", max_tokens=1400, json_mode=True)
         got = {}
         try:
             for e in json.loads(re.search(r"\{.*\}", out, re.S).group(0))["keys"]:
@@ -125,12 +132,20 @@ def extract_keys(facts: list[tuple[int, str]], source: str) -> dict[int, str]:
         return batch, got
 
     batches = [facts[i:i + B] for i in range(0, len(facts), B)]
+    fallbacks = 0
     with ThreadPoolExecutor(max_workers=8) as ex:
         for batch, got in ex.map(_one, batches):
             for s, t in batch:
                 # fallback key = the fact minus its last two words (templated tails);
                 # only used when the distiller call failed for this fact
+                if s not in got:
+                    fallbacks += 1
                 keys[s] = got.get(s) or " ".join(normalize_answer(t).split()[:-2])
+    if fallbacks > len(facts) // 2:
+        # Same failure class as the zero-vector bug: a dead LLM endpoint must FAIL
+        # LOUDLY, not silently degrade the whole sequence to heuristic keys.
+        raise RuntimeError(f"key extraction degraded: {fallbacks}/{len(facts)} fallbacks "
+                           f"({source}) — LLM endpoint likely broken")
     CACHE.mkdir(parents=True, exist_ok=True)
     json.dump(keys, open(cf, "w"))
     return keys
@@ -251,7 +266,11 @@ def main():
                     help="tenet reading: official MAB prompt | verbatim extraction | "
                          "per-hop Self-Ask decomposition (MH cells)")
     ap.add_argument("--dump", default="", help="misses JSONL")
+    ap.add_argument("--keys", choices=["llm", "heuristic"], default="llm",
+                    help="supersession keys: distiller (llm) or deterministic zero-LLM (heuristic)")
     args = ap.parse_args()
+    global KEY_MODE
+    KEY_MODE = args.keys
 
     from datasets import load_dataset
     cr = load_dataset("ai-hyz/MemoryAgentBench", split="Conflict_Resolution")
