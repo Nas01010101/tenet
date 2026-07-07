@@ -106,6 +106,15 @@ deterministic post-retrieval aggregation. Tenet differs in \emph{where} consiste
 enforced---at ingestion and at recall (belief--evidence consistency)---and in coupling the
 belief state to surprise-gated writes and budget-bounded evidence expansion, evaluated on
 the knowledge-churn axis none of them report.
+\textbf{Memory in the Qwen ecosystem.} Alibaba's own 2026 memory line takes the opposite
+design point: QwenLong-L1.5~\cite{qwenlong} reaches 76.4 on LongMemEval by RL-training a
+30B reasoner that reads up to 128K tokens per query; AgeMem~\cite{agemem} RL-trains the
+memory policy itself (Qwen2.5-7B backbone); ActMem~\cite{actmem} (Alibaba-co-authored)
+reaches 75.6 with LLM-built causal graphs at ingestion. All three spend heavily---at
+training time, ingestion time, or read time. Tenet reaches 60.0 at the same reader tier
+with \textbf{zero-LLM ingestion and $\sim$2K read tokens per query} ($\sim$79\% of
+QwenLong-L1.5's score at under 2\% of its read budget), and its structural wins survive
+on a 7B backbone.
 \textbf{OS-style / observational memory.} MemGPT/Letta~\cite{memgpt} page memory between
 context and archival storage; observational schemes keep a stable summary. Both are largely
 append-oriented and do not treat supersession or forgetting as first-class.
@@ -289,6 +298,9 @@ evaluating agent memory.
 \bibitem{engram} \emph{Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents}. arXiv:2606.09900, 2026.
 \bibitem{toki} \emph{TOKI: A Bitemporal Operator Algebra for Contradiction Resolution in LLM-Agent Persistent Memory}. arXiv:2606.06240, 2026.
 \bibitem{hipporag2} Guti\'errez et al. \emph{From RAG to Memory: Non-Parametric Continual Learning for Large Language Models}. arXiv:2502.14802, 2025.
+\bibitem{qwenlong} Shen et al. \emph{QwenLong-L1.5: Post-Training Recipe for Long-Context Reasoning and Memory Management}. arXiv:2512.12967, 2026.
+\bibitem{agemem} Yu et al. \emph{Agentic Memory: Learning Unified Long-Term and Short-Term Memory Management for LLM Agents}. arXiv:2601.01885, ACL 2026.
+\bibitem{actmem} Zhang et al. \emph{ActMem: Bridging the Gap Between Memory Retrieval and Reasoning in LLM Agents}. arXiv:2603.00026, 2026.
 \bibitem{friston} Friston. \emph{The free-energy principle: a unified brain theory?} Nat.\ Rev.\ Neurosci., 2010.
 \end{thebibliography}
 
