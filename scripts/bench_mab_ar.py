@@ -156,6 +156,9 @@ def main():
     ap.add_argument("--hops", type=int, default=2)
     ap.add_argument("--expand", type=int, default=20)
     ap.add_argument("--dump", default="")
+    ap.add_argument("--dump-preds", default="",
+                    help="write EVERY prediction (both arms) to this JSONL so scoring "
+                         "can be redone later — e.g. LLM-judge once a judge is available")
     ap.add_argument("--judge", action="store_true",
                     help="score longmemeval cells with MAB's official LLM-judge "
                          "(anscheck prompts verbatim; QWEN_JUDGE_MODEL, default qwen-max) "
@@ -167,6 +170,7 @@ def main():
     want = set(args.cells.split(",")) if args.cells else None
 
     dump_f = open(args.dump, "w") if args.dump else None
+    preds_f = open(args.dump_preds, "w") if args.dump_preds else None
     per_cell: dict[str, list[int]] = {}
     t0 = time.time()
     for ex in ar:
@@ -194,6 +198,12 @@ def main():
             read = answer_choice if source.startswith("eventqa") else answer_extract
             rp = read(rag_pool, q)
             tp = read(tenet_pool, q)
+            if preds_f:
+                preds_f.write(json.dumps({"cell": source, "q": q, "gold": gold,
+                                          "rag": rp, "tenet": tp,
+                                          "qtype": qtypes[qi],
+                                          "abs": str(qids[qi]).endswith("_abs")}) + "\n")
+                preds_f.flush()
             if not rp.strip() or not tp.strip():
                 stats[3] += 1
                 continue
