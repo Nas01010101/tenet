@@ -30,6 +30,38 @@ CACHE = Path(__file__).resolve().parent.parent / "data" / "cache" / "mab_ar"
 CHUNK_CHARS = 1200          # raw slice size (~300 tokens)
 
 
+def lme_chunks(context: str) -> list[str] | None:
+    """Structure-aware ingestion for longmemeval cells: the context is a stringified
+    list alternating 'Chat Time: <date>' markers and turn lists. Generic slicing
+    divorces turns from their dates — the #1 shared-miss cause (temporal/aggregation
+    questions). Emit date-prefixed turns, chunked at turn boundaries. Zero-LLM."""
+    import ast
+    try:
+        items = ast.literal_eval(context)
+    except Exception:
+        return None
+    out, cur, date = [], "", ""
+    def flush():
+        nonlocal cur
+        if cur.strip():
+            out.append(cur.strip())
+        cur = ""
+    for it in items:
+        if isinstance(it, str):
+            date = it.replace("Chat Time: ", "").strip()
+            flush()
+        elif isinstance(it, list):
+            for t in it:
+                line = f"[{date}] {t.get('role', '?')}: {t.get('content', '')}".strip()
+                if len(cur) + len(line) > CHUNK_CHARS:
+                    flush()
+                # a single long turn becomes its own (oversize) chunk rather than
+                # being split away from its date prefix
+                cur = (cur + "\n" + line) if cur else line
+    flush()
+    return out or None
+
+
 def chunks_of(text: str) -> list[str]:
     out, i = [], 0
     while i < len(text):
@@ -141,8 +173,10 @@ def main():
         source = ex["metadata"]["source"]
         if want and not any(source.startswith(w) for w in want):
             continue
-        cache_id = "ar" + hashlib.md5(ex["context"].encode()).hexdigest()[:12]
-        chs = chunks_of(ex["context"])
+        chs = lme_chunks(ex["context"]) if source.startswith("longmemeval") else None
+        ver = "v2" if chs else ""            # structured chunks get their own cache
+        chs = chs or chunks_of(ex["context"])
+        cache_id = "ar" + ver + hashlib.md5(ex["context"].encode()).hexdigest()[:12]
         print(f"\n=== {source}: {len(chs)} chunks (cache {cache_id}) ===", flush=True)
         m, mat = build_store(cache_id, chs)
 
