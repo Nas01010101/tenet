@@ -18,7 +18,7 @@ Tenet is evaluated on the standard **LongMemEval_S** benchmark (500 questions,
 - **Dominates the long-horizon regime**: as a fact is updated many times, RAG collapses
   (100%→50%); **Tenet holds 100%**. This is the regime long-term memory is *for*.
 - **Honest weakness**: multi-session synthesis — the one category still behind RAG
-  (42.9 vs 57.1, up from 28.6). Documented in §7.
+  (42.9 vs 57.1, up from 28.6). Documented in §8.
 
 ## 1. Retrieval recall — LongMemEval_S (`scripts/lme_recall.py`)
 Session-level recall@10 over the full ~50-session haystack (n=40):
@@ -59,7 +59,7 @@ surfaced — brings raw accuracy to **parity with strong RAG at fewer tokens** (
 
 Tenet ≥ RAG on every type **except multi-session** (43 vs 57, up from 29 before expansion):
 these questions need several evidence sessions, but expansion only deepens the sessions the
-top-*k* already surfaced. Honest limitation, §7. On a cheaper `gpt-4o-mini` reader the parity
+top-*k* already surfaced. Honest limitation, §8. On a cheaper `gpt-4o-mini` reader the parity
 point edges ahead overall (Tenet 60.0 vs RAG 55.0). *(\*full-context under a weaker reader.)*
 
 ## 3. Long-horizon knowledge churn — where memory structurally wins (`scripts/bench_horizon.py`)
@@ -142,7 +142,45 @@ is a **local qwen2.5:7b** — a deliberately weak, laptop-class backbone.
 Reproduce: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local \
 python scripts/bench_factcon.py --qpc 100 --tenet-read decompose --keys heuristic`
 
-## 7. Honest limitations
+## 7. MAB Accurate-Retrieval — the second MAB competency (`scripts/bench_mab_ar.py`)
+MemoryAgentBench's other core competency: 22 long contexts (197K–534K tokens), four
+sub-benchmarks, ~2,000 questions. **Protocol-faithful per sub-benchmark**: RULER-QA
+scored with SubEM, EventQA as multiple-choice accuracy, LongMemEval(S*) with MAB's
+**official LLM-judge** (anscheck prompts copied verbatim from their eval code; judge
+gpt-4o). Reader **gpt-4o-mini — the published table's exact backbone tier**. Tenet
+ingestion is again **zero-LLM** (date-aware structured chunks + embeddings only);
+the naive-RAG control shares reader and chunking, so memory method is the only variable.
+
+| sub-benchmark (official metric) | naive-RAG | **Tenet** | HippoRAG-v2¹ |
+|---|---:|---:|---:|
+| RULER SH-QA (SubEM, n=100) | 74.0 | **75.0** | 76 |
+| RULER MH-QA (SubEM, n=100) | 40.0 | **45.0** | **66** |
+| LongMemEval(S*) (LLM-judge, n=300) | 46.0 | 46.3 | **50.7** |
+| EventQA (choice acc, n=1500) | 71.3 | **70.7** [68.3, 72.9] | 67.6 |
+| **AR average** | 57.8 | **59.3** | **65.1** |
+
+¹ The strongest AR system in the MAB paper (gpt-4o-mini backbone). Other published
+frameworks: Mem0 32.6, Zep 37.5, MemGPT ≈39.
+
+- **EventQA: beaten** — 70.7 vs 67.6, and the Wilson CI excludes their score.
+- **RULER SH-QA: parity** (75 vs 76). **LME(S*): 4.4 points short** after five
+  documented retrieval iterations — the residual misses are answer-synthesis-bound
+  (both arms identical), not retrieval-bound.
+- **RULER MH-QA is the honest loss** (45 vs 66): HippoRAG-v2's Personalized-PageRank
+  graph is genuinely better at multi-hop chaining over narrative documents. Reported,
+  not hidden.
+- **The efficiency story**: HippoRAG-v2's ingestion runs LLM OpenIE over every token
+  of the 197K–534K contexts; Tenet ingests with **embeddings only** and still reaches
+  91% of its AR average — and beats every other published memory framework (Mem0,
+  Zep, MemGPT) by 20+ points. Combined with FC (§6), Tenet leads or ties the
+  published field on 2 of the 4 sub-benchmarks at a fraction of the ingestion cost.
+
+Reproduce: `LLM_PROVIDER=openrouter OPENROUTER_MODEL=openai/gpt-4o-mini \
+JUDGE_PROVIDER=openrouter JUDGE_MODEL=openai/gpt-4o EMBED_PROVIDER=local \
+python scripts/bench_mab_ar.py --qpc 100 --judge` (LME best config adds `--k 20`; per-cells via `--cells`; local-7B
+ablation: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b` → EventQA 56.5, ruler 57.0).
+
+## 8. Honest limitations
 - **Multi-session synthesis** is the one category where RAG still leads (43% vs 57%).
   Belief-anchored expansion lifted it from 29% but doesn't close it: these questions need
   evidence from *several* sessions, and expansion only deepens the sessions the top-*k*

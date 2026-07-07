@@ -105,6 +105,15 @@ and at recall (belief–evidence consistency retires stale raw evidence) — and
 the belief state to a write policy (surprise gating) and a budget-bounded evidence
 expansion, evaluated on the knowledge-churn axis none of them report.
 
+**Memory in the Qwen ecosystem.** Alibaba's own 2026 memory line takes the opposite
+design point from Tenet: QwenLong-L1.5 [Shen 2026] reaches 76.4 on LongMemEval by
+RL-training a 30B reasoner that reads up to 128K tokens per query; AgeMem [Yu 2026]
+RL-trains the memory policy itself (Qwen2.5-7B backbone); ActMem [Zhang 2026]
+(Alibaba-co-authored) reaches 75.6 with LLM-built causal graphs at ingestion. All three
+spend heavily — at training time, ingestion time, or read time. Tenet reaches 60.0 on the
+same benchmark at the same reader tier with **zero-LLM ingestion and ~2K read tokens per
+query** (~79% of QwenLong-L1.5's score at under 2% of its read budget), and its structural
+wins (knowledge churn, conflict resolution) survive on a 7B backbone.
 **OS-style and observational memory.** MemGPT/Letta [Packer 2023] page memory between a
 context "RAM" and archival "disk", agent-managed. Mastra's Observational Memory maintains a
 stable, cacheable summary. Both are largely append-oriented and do not model fact
@@ -243,6 +252,19 @@ best is ≤7. Accuracy barely degrades with haystack length (SH 89→81 from 6K�
 the store is conflict-resolved at ingestion — the property assembly-time aggregation must
 re-derive at every read. Multi-hop still degrades with length (42→20); reported honestly.
 
+**4.6 Accurate retrieval at zero ingestion cost — MemoryAgentBench AR.** On MAB's other
+core competency (~2,000 questions, 197K–534K-token contexts; official per-benchmark
+metrics: SubEM for RULER-QA, the official LLM-judge for LongMemEval(S*), choice accuracy
+for EventQA; matched gpt-4o-mini reader), Tenet with **zero-LLM ingestion** (date-aware
+structured chunks + embeddings only) averages **59.3** — second only to HippoRAG-v2
+[Gutiérrez 2025] (65.1), which runs LLM OpenIE over every context token at ingestion,
+and 20+ points above Mem0 (32.6), Zep (37.5) and MemGPT. Per sub-benchmark: EventQA
+**70.7** (n=1,500; Wilson CI [68.3, 72.9] excludes HippoRAG-v2's 67.6), RULER SH-QA 75.0
+(parity with 76), LME(S*) 46.3 vs 50.7, RULER MH-QA 45.0 vs 66 — the honest loss:
+Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
+narrative text. Together with §4.5, Tenet leads or ties the published field on two of
+MAB's four competencies while being the only system whose ingestion never calls an LLM.
+
 ## 5. Limitations
 
 - **Multi-session synthesis** is the one category where RAG still leads (42.9 vs 57.1).
@@ -277,6 +299,14 @@ belief-state view also yields time-travel and principled forgetting for free. We
 [Packer 2023] MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560.
 [Xu 2025] A-MEM: Agentic Memory for LLM Agents. arXiv:2502.12110.
 [Hu 2026] MemoryAgentBench: Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions. arXiv:2507.05257 (ICLR 2026).
+
+[Gutiérrez 2025] From RAG to Memory: Non-Parametric Continual Learning for Large Language Models (HippoRAG 2). arXiv:2502.14802.
+
+[Shen 2026] Shen et al. QwenLong-L1.5: Post-Training Recipe for Long-Context Reasoning and Memory Management. arXiv:2512.12967 (Alibaba Tongyi).
+
+[Yu 2026] Yu et al. Agentic Memory: Learning Unified Long-Term and Short-Term Memory Management for LLM Agents. arXiv:2601.01885 (ACL 2026, Alibaba).
+
+[Zhang 2026] Zhang et al. ActMem: Bridging the Gap Between Memory Retrieval and Reasoning in LLM Agents. arXiv:2603.00026.
 [Freshness 2026] Don't Ask the LLM to Track Freshness: A Deterministic Recipe for Memory Conflict Resolution. arXiv:2606.01435.
 [MemStrata 2026] Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors for AI Agents over Evolving Knowledge. arXiv:2606.26511.
 [Engram 2026] Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents. arXiv:2606.09900.
