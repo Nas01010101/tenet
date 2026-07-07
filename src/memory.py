@@ -34,6 +34,7 @@ _DEFAULT_DB = Path(__file__).resolve().parent.parent / "data" / "tenet.db"
 _HALFLIFE_S = 14 * 24 * 3600  # a memory's recency weight halves every 14 days
 _FORGET_THRESHOLD = 0.15      # decay score below this -> archived by the sweep
 _STALE_ECHO = 0.80            # a raw slice this similar to a superseded fact is stale
+_REPLAY_LAMBDA = 0.5          # recursive recall: weight of the evidence pool in the cue
 
 
 @dataclass
@@ -191,12 +192,31 @@ class MemoryCore:
         k: int = 5,
         char_budget: int | None = None,
         as_of: float | None = None,
+        expand: int = 0,
+        hops: int = 0,
     ) -> list[Memory]:
         """Most relevant memories, ranked by relevance × decay.
 
         Default: only *currently-true* facts (expired_at IS NULL). Pass as_of=<ts>
         to time-travel — recall what was believed true at that timestamp.
         char_budget greedily caps total size (recall under a limited context window).
+
+        `expand` — belief-anchored evidence expansion. The dual-pool top-k names the
+        belief state and the sessions it came from; multi-hop/temporal answers, though,
+        need the surrounding verbatim turns from *those same sessions*, which the k//2
+        raw cap crowds out. When expand>0, after the top-k is chosen we pull up to
+        `expand` extra query-relevant raw slices whose `source` matches a surfaced
+        memory — closing the multi-session gap while staying well under a flat RAG's
+        token count (evidence is anchored to already-relevant sessions, not the haystack).
+
+        `hops` — recursive associative recall (ReContext-style replay, arXiv:2607.02509,
+        with cosine standing in for attention as the cue–trace association). When hops>0,
+        the `expand` slots are selected over `hops` rounds instead of one: after each
+        round the cue is re-conditioned on the evidence gathered so far
+        (cue ← normalize(q + λ·mean(pool))), and the WHOLE store is re-scored — so a
+        later round can reach a session the raw query never surfaced (the associative
+        hop a multi-session question needs). Selection stays read-only, LLM-free, and
+        subject to the same stale-echo filter; callers keep the token budget cap.
         """
         qv = self._embed(query)  # network call — kept outside the lock
         with self._lock:
@@ -211,26 +231,25 @@ class MemoryCore:
                 scored.append((rank, relevance, row))
             scored.sort(key=lambda x: x[0], reverse=True)
 
+            # World-model consistency: the current facts are the belief state. A raw
+            # slice that echoes a SUPERSEDED belief (e.g. "I moved to Boston" after the
+            # user moved on) is stale evidence — retire it from current recall so it
+            # can't reintroduce an outdated value. (Only for current recall, not as_of.)
+            expired = self._expired_fact_matrix() if as_of is None else None
+
+            def _fresh(row) -> bool:
+                if expired is None:
+                    return True
+                emb = np.frombuffer(row["embedding"], dtype=np.float32)
+                return float(np.max(expired @ emb)) < _STALE_ECHO
+
             # Dual-pool selection: distilled facts win on consistency/temporal, raw
             # slices win on verbatim detail (durations, numbers). Guarantee raw slices
             # a share of the budget so distillation can't crowd out the exact answer —
             # but if one pool is empty, the other fills all k slots (no starvation).
             facts = [(rank, row) for rank, _rel, row in scored if row["kind"] != "raw"]
-            raws = [(rel, row) for _rank, rel, row in scored if row["kind"] == "raw"]
-
-            # World-model consistency: the current facts are the belief state. A raw
-            # slice that echoes a SUPERSEDED belief (e.g. "I moved to Boston" after the
-            # user moved on) is stale evidence — retire it from current recall so it
-            # can't reintroduce an outdated value. (Only for current recall, not as_of.)
-            if as_of is None and raws:
-                expired = self._expired_fact_matrix()
-                if expired is not None:
-                    kept = []
-                    for rel, row in raws:
-                        emb = np.frombuffer(row["embedding"], dtype=np.float32)
-                        if float(np.max(expired @ emb)) < _STALE_ECHO:
-                            kept.append((rel, row))
-                    raws = kept
+            raws = [(rel, row) for _rank, rel, row in scored
+                    if row["kind"] == "raw" and _fresh(row)]
             n_raw = min(len(raws), k // 2)
             picked = facts[: k - n_raw] + raws[:n_raw]
             if len(picked) < k:  # backfill from whatever remains, best rank first
@@ -247,6 +266,62 @@ class MemoryCore:
                     self._touch(row["id"])
                 used += len(row["text"])
                 out.append(self._to_memory(row, rank))
+
+            # Belief-anchored evidence expansion: add query-relevant raw turns from the
+            # sessions the top-k already surfaced. Ranked by pure relevance (detail, not
+            # decay), fresh (not a stale echo), not already picked.
+            if expand and as_of is None and hops <= 1:
+                anchors = {m.source for m in out if m.source}
+                if anchors:
+                    have = {m.id for m in out}
+                    cands = [(rel, row) for _r, rel, row in scored
+                             if row["kind"] == "raw" and row["source"] in anchors
+                             and row["id"] not in have and _fresh(row)]
+                    cands.sort(key=lambda x: x[0], reverse=True)
+                    for rel, row in cands[:expand]:
+                        if char_budget is not None and used + len(row["text"]) > char_budget:
+                            continue
+                        self._touch(row["id"])
+                        used += len(row["text"])
+                        out.append(self._to_memory(row, rel))
+
+            # Recursive associative recall: spend the expand slots over `hops` rounds,
+            # re-conditioning the cue on the evidence pool after each (replay). Unlike
+            # anchored expansion, candidates span the WHOLE store, so a hop can pull in
+            # a session related to the evidence rather than to the raw query.
+            elif expand and as_of is None and hops > 1:
+                have = {m.id for m in out}
+                pool_vecs = [np.frombuffer(row["embedding"], dtype=np.float32)
+                             for _rank, row in picked if row["id"] in have]
+                fresh_rows = [row for _r, _rel, row in scored
+                              if row["id"] not in have and _fresh(row)]
+                per_hop = max(1, expand // hops)
+                taken = 0
+                for _ in range(hops):
+                    if taken >= expand or not fresh_rows:
+                        break
+                    if pool_vecs:  # replay: fold the pool into the cue
+                        pool = np.mean(pool_vecs, axis=0)
+                        cue = qv + _REPLAY_LAMBDA * pool
+                        cue /= (np.linalg.norm(cue) or 1.0)
+                    else:
+                        cue = qv
+                    rescored = sorted(
+                        ((float(np.dot(cue, np.frombuffer(row["embedding"], dtype=np.float32))), row)
+                         for row in fresh_rows),
+                        key=lambda x: x[0], reverse=True)
+                    for rel, row in rescored[:per_hop]:
+                        if taken >= expand:
+                            break
+                        if char_budget is not None and used + len(row["text"]) > char_budget:
+                            continue
+                        self._touch(row["id"])
+                        used += len(row["text"])
+                        out.append(self._to_memory(row, rel))
+                        have.add(row["id"])
+                        pool_vecs.append(np.frombuffer(row["embedding"], dtype=np.float32))
+                        taken += 1
+                    fresh_rows = [row for row in fresh_rows if row["id"] not in have]
             return out
 
     # ---- forgetting ------------------------------------------------------

@@ -101,6 +101,11 @@ def chat(messages, *, qwen_default: str, max_tokens: int = 512, temperature: flo
         kw["extra_body"] = {"enable_thinking": False}
         if json_mode:  # Qwen supports it reliably; OpenRouter provider support varies,
             kw["response_format"] = {"type": "json_object"}  # so we rely on the prompt there
+    elif LLM_PROVIDER == "openrouter":
+        pin = get("OPENROUTER_PROVIDER", "")  # e.g. "OpenAI" — pin routing so a degraded
+        if pin:                               # fallback provider can't corrupt a benchmark
+            kw["extra_body"] = {"provider": {"order": pin.split(","),
+                                             "allow_fallbacks": False}}
     client = chat_client()
     for attempt in range(5):
         try:

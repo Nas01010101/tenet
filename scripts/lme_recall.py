@@ -64,12 +64,13 @@ def qa_answer(context, question, qdate):
 
 
 def qa_judge(question, gold, pred):
-    return _qa_chat(_JUDGE_SYS,
-                    f"Question: {question}\nGold: {gold}\nModel answer: {pred}\nCorrect?",
-                    max_tokens=4).lower().startswith("y")
+    out = _qa_chat(_JUDGE_SYS,
+                   f"Question: {question}\nGold: {gold}\nModel answer: {pred}\nCorrect?",
+                   max_tokens=4).lower()
+    return out.startswith("y") if out else None  # None = judge API failure
 
 
-def eval_instance(inst, k, embedder, qa=False, do_full=True):
+def eval_instance(inst, k, embedder, qa=False, do_full=True, expand=0, hops=0):
     evidence = set(inst["answer_session_ids"])
     turns = flatten(inst)
     texts = [t for _, t in turns]
@@ -113,7 +114,11 @@ def eval_instance(inst, k, embedder, qa=False, do_full=True):
         m.core.store(text, kind="raw", salience=0.35, source=sid, _vec=tv)
 
     t0 = time.time()
-    hits = m.core.recall(inst["question"], k=k)
+    # Budget-bounded expansion: cap Tenet's context at RAG's own size so the
+    # accuracy comparison is at EQUAL-OR-LOWER tokens (never buying accuracy with
+    # more context than the baseline). expand fills that budget with anchored evidence.
+    budget = len(rag_ctx) if expand else None
+    hits = m.core.recall(inst["question"], k=k, expand=expand, hops=hops, char_budget=budget)
     tenet_lat = time.time() - t0
     tenet_ok = recall_hit([h.source for h in hits], evidence)
     tenet_ctx = "\n".join(f"- {h.text}" for h in hits)
@@ -126,12 +131,23 @@ def eval_instance(inst, k, embedder, qa=False, do_full=True):
     if qa:
         rp = qa_answer(rag_ctx, inst["question"], inst["question_date"])
         mp = qa_answer(tenet_ctx, inst["question"], inst["question_date"])
-        r["rag_qa"] = qa_judge(inst["question"], inst["answer"], rp)
-        r["tenet_qa"] = qa_judge(inst["question"], inst["answer"], mp)
-        if do_full:  # full-context ceiling (expensive: feeds the entire history)
+        rj = qa_judge(inst["question"], inst["answer"], rp) if rp.strip() else None
+        mj = qa_judge(inst["question"], inst["answer"], mp) if mp.strip() else None
+        if rj is None or mj is None:
+            # An API failure (empty answer or judge) must not count as a wrong
+            # answer for either arm — exclude the instance from QA scoring.
+            r["qa_error"] = True
+        else:
+            r["rag_qa"], r["tenet_qa"] = rj, mj
+        if do_full and not r.get("qa_error"):  # full-context ceiling (expensive)
             full_ctx = "\n".join(f"[{d}] {t}" for d, t in turns)
             fp = qa_answer(full_ctx, inst["question"], inst["question_date"])
-            r["full_qa"] = qa_judge(inst["question"], inst["answer"], fp)
+            fj = qa_judge(inst["question"], inst["answer"], fp) if fp.strip() else None
+            if fj is None:
+                r["qa_error"] = True
+                r.pop("rag_qa", None); r.pop("tenet_qa", None)
+            else:
+                r["full_qa"] = fj
     return r
 
 
@@ -143,6 +159,12 @@ def main():
     ap.add_argument("--qa", action="store_true", help="also run answer-accuracy + context efficiency")
     ap.add_argument("--type", default="", help="filter to one question_type (e.g. knowledge-update)")
     ap.add_argument("--no-full", action="store_true", help="skip the costly full-context ceiling")
+    ap.add_argument("--expand", type=int, default=0,
+                    help="belief-anchored evidence expansion: extra query-relevant raw slices "
+                         "from surfaced sessions (0=off)")
+    ap.add_argument("--hops", type=int, default=0,
+                    help="recursive associative recall: select the expand slots over this many "
+                         "replay-conditioned rounds (ReContext-style; 0/1=single-shot anchored)")
     args = ap.parse_args()
 
     import random
@@ -158,11 +180,13 @@ def main():
     rows = []
     t_start = time.time()
     for i, inst in enumerate(data):
-        r = eval_instance(inst, args.k, embedder, qa=args.qa, do_full=not args.no_full)
+        r = eval_instance(inst, args.k, embedder, qa=args.qa, do_full=not args.no_full,
+                          expand=args.expand, hops=args.hops)
         rows.append(r)
         tail = ""
         if args.qa:
-            tail = f" | QA rag:{'✓' if r['rag_qa'] else '✗'} tenet:{'✓' if r['tenet_qa'] else '✗'}"
+            tail = (" | QA ERROR (excluded)" if r.get("qa_error") else
+                    f" | QA rag:{'✓' if r['rag_qa'] else '✗'} tenet:{'✓' if r['tenet_qa'] else '✗'}")
         print(f"[{i+1}/{len(data)}] {r['type'][:18]:18s} turns={r['turns']:4d} | "
               f"recall rag:{'✓' if r['rag_recall'] else '✗'} tenet:{'✓' if r['tenet_recall'] else '✗'}{tail}")
 
@@ -171,18 +195,23 @@ def main():
     print(f"\n=== LongMemEval_S (n={n}{', type='+args.type if args.type else ''}) ===")
     print(f"session-level recall@{args.k}:  rag={pct('rag_recall'):.1f}%  tenet={pct('tenet_recall'):.1f}%")
     avg = lambda key: sum(r[key] for r in rows) / n
+    qa_rows = [r for r in rows if not r.get("qa_error")]
+    nq = len(qa_rows)
+    def pctq(key): return 100 * sum(r[key] for r in qa_rows) / max(nq, 1)
     if args.qa:
-        full_str = f"full-context={pct('full_qa'):.1f}%  " if not args.no_full else ""
+        if nq < n:
+            print(f"  ⚠ {n-nq} instance(s) excluded from QA (API errors) — scored over n={nq}")
+        full_str = f"full-context={pctq('full_qa'):.1f}%  " if not args.no_full else ""
         print(f"\nanswer accuracy (QA):  {full_str}"
-              f"rag@{args.k}={pct('rag_qa'):.1f}%  tenet={pct('tenet_qa'):.1f}%")
+              f"rag@{args.k}={pctq('rag_qa'):.1f}%  tenet={pctq('tenet_qa'):.1f}%")
         # the frontier: accuracy per unit of reader context (tokens ≈ chars/4)
         frontier = [("rag", "rag_qa", "rag_ctx_chars"), ("tenet", "tenet_qa", "tenet_ctx_chars")]
         if not args.no_full:
             frontier = [("full-context", "full_qa", "full_ctx_chars")] + frontier
         for name, acc_k, ctx_k in frontier:
             toks = avg(ctx_k) / 4
-            print(f"  {name:13s} acc={pct(acc_k):5.1f}%  ctx≈{toks:6.0f} tok  "
-                  f"acc/1k-tok={pct(acc_k)/max(toks/1000,1e-6):6.1f}")
+            print(f"  {name:13s} acc={pctq(acc_k):5.1f}%  ctx≈{toks:6.0f} tok  "
+                  f"acc/1k-tok={pctq(acc_k)/max(toks/1000,1e-6):6.1f}")
     print(f"\ncontext chars fed to reader: full≈{avg('full_ctx_chars'):.0f}  "
           f"rag≈{avg('rag_ctx_chars'):.0f}  tenet≈{avg('tenet_ctx_chars'):.0f}")
     print(f"  → tenet uses {100*(1-avg('tenet_ctx_chars')/avg('full_ctx_chars')):.1f}% less context than full history")
@@ -195,7 +224,9 @@ def main():
         t = len(rs)
         line = f"  {qt:24s} {100*sum(x['rag_recall'] for x in rs)/t:5.1f}%/{100*sum(x['tenet_recall'] for x in rs)/t:5.1f}%"
         if args.qa:
-            line += f"  ·  {100*sum(x['rag_qa'] for x in rs)/t:5.1f}%/{100*sum(x['tenet_qa'] for x in rs)/t:5.1f}%"
+            qs = [x for x in rs if not x.get("qa_error")]
+            tq = max(len(qs), 1)
+            line += f"  ·  {100*sum(x['rag_qa'] for x in qs)/tq:5.1f}%/{100*sum(x['tenet_qa'] for x in qs)/tq:5.1f}%"
         print(line + f"  (n={t})")
     if args.qa:
         print(f"\nQA tokens: in={_qa_usage['in']:,} out={_qa_usage['out']:,}")
