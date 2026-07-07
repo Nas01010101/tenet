@@ -108,18 +108,21 @@ _judge_client = None
 def judge_correct(question: str, gold, pred: str, qtype: str, abstention: bool) -> bool | None:
     """Official MAB judge. Returns None on judge API failure (caller excludes)."""
     global _judge_client
+    import os
     if _judge_client is None:
-        import os
         from openai import OpenAI
-        _judge_client = OpenAI(api_key=os.environ["DASHSCOPE_API_KEY"],
-                               base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
+        if os.environ.get("JUDGE_PROVIDER") == "openrouter":
+            _judge_client = OpenAI(api_key=os.environ["OPENROUTER_API_KEY"],
+                                   base_url="https://openrouter.ai/api/v1")
+        else:
+            _judge_client = OpenAI(api_key=os.environ["DASHSCOPE_API_KEY"],
+                                   base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
     g = gold[0] if isinstance(gold, list) else gold
     tpl = _ANSCHECK["abstention"] if abstention else _ANSCHECK.get(qtype, _ANSCHECK["default"])
-    import os
     for _ in range(4):
         try:
             r = _judge_client.chat.completions.create(
-                model=os.environ.get("QWEN_JUDGE_MODEL", "qwen-max"),
+                model=os.environ.get("JUDGE_MODEL", os.environ.get("QWEN_JUDGE_MODEL", "qwen-max")),
                 messages=[{"role": "user", "content": tpl.format(question, g, pred)}],
                 max_tokens=5, temperature=0)
             out = (r.choices[0].message.content or "").strip().lower()
