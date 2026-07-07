@@ -15,7 +15,7 @@ A personal AI assistant on Qwen Cloud whose memory stays true as your life chang
 supersedes facts, time-travels to what you used to say, and forgets stale trivia.
 
 ## Text description
-**Tenet is a personal AI assistant** (`src/agent.py`) that remembers you across sessions
+**Tenet is a personal AI assistant** (`src/tenet/agent.py`) that remembers you across sessions
 and — unlike a chatbot bolted onto RAG — **stays correct when your facts change**. Move
 cities, change jobs, update a preference, and it tracks the *current* truth; ask what you
 used to say and it recalls the history; it forgets stale trivia on its own. It's powered
@@ -68,9 +68,9 @@ surprise-gated writes (predictive-coding efficiency) — exposed over MCP.
 - **Code repository:** https://github.com/Nas01010101/tenet (public, MIT license visible in About)
 - **Demo video (≤3 min):** [YOUTUBE URL]
 - **Architecture diagram:** `docs/architecture.svg` in the repo
-- **Proof of Alibaba Cloud services/APIs:** `src/config.py` + `src/distill.py` +
-  `src/memory.py` call `dashscope-intl.aliyuncs.com` (Alibaba Cloud Model Studio);
-  optional OSS: `src/alicloud_oss.py`
+- **Proof of Alibaba Cloud services/APIs:** `src/tenet/config.py` + `src/tenet/distill.py` +
+  `src/tenet/memory.py` call `dashscope-intl.aliyuncs.com` (Alibaba Cloud Model Studio);
+  optional OSS: `src/tenet/alicloud_oss.py`
 - **Blog post (optional, Blog Post Prize):** [BLOG URL]
 
 ## Submission checklist

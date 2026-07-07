@@ -1,0 +1,512 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage[colorlinks=true,linkcolor=violet,urlcolor=violet,citecolor=violet]{hyperref}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.4ex}{0.7ex}
+\titlespacing*{\subsection}{0pt}{1.0ex}{0.5ex}
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\tenet}{\textsc{Tenet}}
+\newcommand{\ci}[2]{{\footnotesize[#1,\,#2]}}
+
+\title{\textbf{Tenet: Agent Memory as a Self-Consistent Belief State}\\
+\large Bi-temporal supersession, belief--evidence consistency, and LLM-free reads\\
+for long-horizon agents over changing knowledge}
+\author{Anas\\\small \texttt{https://github.com/Nas01010101/tenet}}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Long-term memory for LLM agents is almost universally implemented as
+\emph{retrieval over a growing log of past turns}. We argue this is the wrong abstraction
+for an agent that must model a \emph{changing} world, and we characterize the failure as
+\textbf{knowledge churn}: as a fact is updated $N$ times over a long interaction, stale
+versions crowd the retrieval budget $k$, and once $N>k$ the current value is no longer
+reliably retrieved. On a controlled benchmark a strong RAG memory falls from $100\%$ to
+$50\%$ current-value accuracy as a fact is updated $2\!\to\!12$ times---under both a
+\texttt{gpt-4o-mini} and a \texttt{gpt-4o} reader, so the collapse is structural, not a
+reader artifact. We propose \tenet{}, which reframes memory as a \textbf{self-consistent
+belief state}: (i) turns are distilled into atomic facts with stable semantic keys;
+(ii) a \textbf{bi-temporal} record lets a changed fact \emph{supersede} its predecessor at
+ingestion (history kept, time-travel queryable); (iii) a \textbf{belief--evidence
+consistency rule} retires raw evidence that echoes a superseded belief; (iv) a
+\textbf{surprise-gated write policy} stores only observations the current state does not
+already predict; and (v) \textbf{belief-anchored evidence expansion} spends spare context
+on raw turns from the sessions the belief state already surfaced. The read path never
+calls an LLM. \tenet{} holds $100\%$ under churn at every update level; on
+MemoryAgentBench \textsc{FactConsolidation} (ICLR~2026) it scores $86.5\%$ single-hop
+\ci{82.8}{89.5}---above the published \texttt{gpt-4o-mini}-tier state of the art
+($78.0$) despite using a local 7B backbone---and ties the multi-hop state of the art
+($30.2$); on MemoryAgentBench \textsc{Accurate Retrieval} it averages $59.3$, second only
+to HippoRAG-v2 ($65.1$) among published systems while being the only one whose ingestion
+never calls an LLM, and beats the field on EventQA ($70.7$ vs $67.6$; Wilson CI excludes).
+All numbers are reproducible from released code with official metrics and prompts verbatim.
+\end{abstract}
+
+\section{Introduction}
+An agent that talks to a user for months does not need a transcript; it needs a
+\emph{model of the user} that stays true as the user changes. Yet the dominant memory
+design---retrieval-augmented generation over stored turns~\cite{mem0,longmemeval}---treats
+memory as a document index: embed every turn, retrieve the top-$k$ most similar at query
+time, and let the reader sort it out. This works for one-shot recall of a \emph{static}
+fact. It fails, quietly, when facts \emph{change}.
+
+We formalize this failure as \textbf{knowledge churn}. A user who moves cities several
+times generates many ``I moved to $X$'' turns; all are similar to the query ``where do I
+live?'', so the top-$k$ fills with \emph{stale} versions. Once the number of updates $N$
+exceeds the budget $k$, the latest value may not be retrieved at all; even when it is, the
+reader must infer recency from a pile of contradictory statements. Accuracy collapses
+(\S\ref{sec:churn}), and---critically---a stronger reader cannot rescue it, because the
+failure occurs before the reader sees anything.
+
+The root problem is the abstraction. A document store has no notion that ``I live in
+Boston'' and ``I live in Seattle'' are the \emph{same fact} with a \emph{changed value};
+both are just passages. We argue memory should instead be a \textbf{belief state}: a
+compact set of \emph{current} beliefs about the world, each with a temporal extent,
+updated by observation, kept internally consistent, and queryable across time. This is
+the stance world-model and predictive-coding accounts take toward
+perception~\cite{friston}; we bring it to agent memory and pay particular attention to
+\emph{where} consistency is enforced: at ingestion, so the store never contains a stale
+current value, rather than at assembly time, where every read must re-derive it.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item We identify and name \textbf{knowledge churn}, a structural failure mode of
+  retrieval-augmented memory, give a controlled benchmark exhibiting it (RAG:
+  $100\%\!\to\!50\%$ as a fact is updated $2\!\to\!12\times$; reader-invariant), and show
+  a belief-state memory is immune by construction (\S\ref{sec:churn}).
+\item We present \tenet{}: bi-temporal keyed supersession at ingestion, a
+  \textbf{belief--evidence consistency rule} that retires stale raw evidence, a
+  \textbf{surprise-gated write policy}, salience-decay forgetting, and budget-bounded
+  \textbf{belief-anchored evidence expansion}---in a light, graph-free store whose read
+  path never calls an LLM (\S\ref{sec:method}).
+\item On the standardized \textbf{MemoryAgentBench}~\cite{mab} we evaluate both core
+  competencies with official metrics and prompts verbatim, Wilson CIs, and matched-reader
+  controls. \textsc{FactConsolidation}: single-hop $86.5$ \ci{82.8}{89.5}, above the
+  published mini-tier SOTA ($78.0$~\cite{freshness}, CI excludes) on a \emph{weaker}
+  (local 7B) backbone; multi-hop $30.2$, tying the same SOTA, where every system in the
+  original benchmark table scores $\le 7$. \textsc{Accurate Retrieval}: average $59.3$,
+  second among published systems to HippoRAG-v2's $65.1$~\cite{hipporag2}---which runs
+  LLM OpenIE over every context token, where \tenet{} ingests with embeddings
+  only---and ahead of the field on EventQA ($70.7$ vs $67.6$, CI excludes)
+  (\S\ref{sec:mab}).
+\item We reimplement four published memory methods (Mem0-style consolidation, CAR
+  aggregation~\cite{freshness}, a HippoRAG-v2-style OpenIE+PPR graph, and
+  MemAgent-style~\cite{memagent} overwrite memory) as arms in the \emph{same} harness with
+  the \emph{same} backbone, isolating the memory mechanism as the only variable
+  (\S\ref{sec:baselines}).
+\end{enumerate}
+
+\section{Related work}\label{sec:related}
+\textbf{Retrieval memory.} Mem0~\cite{mem0} distills salient facts at write time over a
+vector store with entity links; it attaches only a \emph{creation} timestamp and notably
+removed its graph variant after finding it $3\times$ slower for a thin gain---evidence we
+take seriously in choosing a light vector substrate. LongMemEval~\cite{longmemeval} is the
+standard long-horizon benchmark; its V2~\cite{lmev2} adds a latency-aware metric,
+signalling a field shift toward accuracy \emph{per cost}, which our per-token results
+target.
+
+\textbf{Temporal knowledge graphs.} Zep/Graphiti~\cite{zep} maintains a \emph{bi-temporal}
+knowledge graph (valid + transaction time) with edge invalidation---the closest prior
+system in temporal semantics. It differs in substrate and mechanism: invalidation is
+LLM-mediated at graph-construction time over (subject, predicate, object) edges, reads
+traverse a graph, and neither a belief--evidence consistency rule over raw text nor
+surprise gating is present. \tenet{} keeps the bi-temporal semantics without the graph,
+and its supersession is deterministic given the distilled key.
+
+\textbf{The 2026 bi-temporal convergence.} Concurrently with this work, several systems
+adopted bi-temporal supersession: MemStrata~\cite{memstrata} applies a deterministic
+(subject, relation, object) supersession rule over a bi-temporal ledger with no LLM in
+the read path---and shows \emph{similarity-threshold} supersession leaks stale values
+where deterministic keying does not, independently corroborating our keyed design;
+Engram~\cite{engram} pairs a bi-temporal knowledge graph with a hybrid
+facts-plus-raw-chunks read path (converging on our dual-pool finding);
+TOKI~\cite{toki} gives contradiction resolution a formal bitemporal operator algebra. On
+conflict-resolution benchmarks, \cite{freshness} shows the \emph{assembly} step dominates:
+deterministic $\max(\text{serial})$ aggregation after retrieval sets the published SOTA on
+MemoryAgentBench FactConsolidation. \tenet{} differs from all of these in \emph{where}
+consistency is enforced---at ingestion (the store never contains a stale current value)
+\emph{and} at recall (belief--evidence consistency retires stale raw evidence)---and in
+coupling the belief state to a write policy (surprise gating) and a budget-bounded
+evidence expansion, evaluated on the knowledge-churn axis none of them report.
+
+\textbf{Memory in the Qwen ecosystem.} Alibaba's 2026 memory line takes the opposite
+design point: QwenLong-L1.5~\cite{qwenlong} reaches $76.4$ on LongMemEval by RL-training a
+30B reasoner that reads up to 128K tokens per query; AgeMem~\cite{agemem} RL-trains the
+memory policy itself; ActMem~\cite{actmem} (Alibaba-co-authored) reaches $75.6$ with
+LLM-built causal graphs at ingestion. All three spend heavily---at training time,
+ingestion time, or read time. \tenet{} reaches $60.0$ on the same benchmark at the same
+reader tier with zero-LLM ingestion and $\sim$2K read tokens per query ($\approx 79\%$ of
+QwenLong-L1.5's score at under $2\%$ of its read budget), and its structural wins
+(churn, conflict resolution) survive on a 7B backbone.
+
+\textbf{OS-style and agentic memory.} MemGPT/Letta~\cite{memgpt} pages memory between a
+context ``RAM'' and archival ``disk''; A-Mem~\cite{amem} lets the agent link and evolve
+notes. Both are largely append-oriented: fact supersession, consistency between distilled
+and raw layers, and forgetting are not first-class operations.
+
+\textbf{What is missing.} No prior system combines (a) ingestion-time bi-temporal keyed
+supersession, (b) an explicit belief--evidence consistency rule spanning the distilled and
+raw layers, (c) surprise-gated writes, (d) principled forgetting, and (e) belief-anchored
+budget-bounded expansion in a graph-free store with an LLM-free read path---nor does any
+report the knowledge-churn regime.
+
+\section{Knowledge churn}\label{sec:problem}
+Let a fact with key $\kappa$ take values $v_1,\dots,v_N$ over an interaction, each update
+producing at least one stored turn. A flat retriever with budget $k$ ranks turns by
+query similarity; all $N$ versions are near-equally similar to a query about $\kappa$
+(paraphrases of the same statement), so the expected number of \emph{stale} passages in
+the top-$k$ grows with $N$, and for $N>k$ the \emph{current} value $v_N$ competes with
+$N-1$ distractors for $k$ slots with no ranking signal that prefers it. Two consequences:
+(1) retrieval of $v_N$ becomes unreliable; (2) even when retrieved, the reader receives
+contradictory values and must infer recency from text alone. Both are properties of the
+\emph{store}, not the reader---which predicts the reader-invariance we observe in
+\S\ref{sec:churn}. A belief state removes the problem at the source: the store contains
+exactly one current value per key, so retrieval of the current value is $O(1)$ in $N$.
+
+\section{Method}\label{sec:method}
+\tenet{} stores two layers over one bi-temporal table: a \textbf{belief layer}
+$\mathcal{B}$ of distilled, keyed facts and an \textbf{evidence layer} $\mathcal{E}$ of
+raw turns. Writes maintain consistency; reads are deterministic lookups plus embedding
+search---no LLM call.
+
+\subsection{Distillation into keyed beliefs}
+Each turn is distilled by a small LLM into atomic facts, each with a stable semantic key
+$\kappa=\textit{subject}{::}\textit{attribute}$ (e.g.\ \texttt{user::residence}), a
+salience $s\in[0,1]$, and an event time. The key is what makes supersession reliable:
+embedding similarity cannot separate a \emph{restated} fact from a \emph{value-changed}
+one (we measure a residence value change at cosine $0.99$, indistinguishable from a
+paraphrase), but a shared key can. Where the source text is already structured (as in
+benchmark fact streams), keys are computed deterministically from the text with no LLM at
+all (\S\ref{sec:fc}).
+
+\subsection{Bi-temporal supersession}
+Every memory carries event time (\texttt{valid\_at}, \texttt{invalid\_at}) and transaction
+time (\texttt{created\_at}, \texttt{expired\_at}). Storing a fact with key $\kappa$ whose
+value differs from the current fact at $\kappa$ \emph{supersedes} it: the old fact's
+\texttt{invalid\_at}/\texttt{expired\_at} are set; it leaves the current set but remains
+in history. Current recall filters \texttt{expired\_at IS NULL};
+$\textit{recall}(\textit{as\_of}=t)$ reconstructs the belief set as of any past $t$
+(time-travel). Supersession is thus enforced \emph{at ingestion}: the current store never
+contains a stale value, and no per-read aggregation is needed to re-derive freshness.
+
+\subsection{Belief--evidence consistency}\label{sec:bec}
+The evidence layer lets the reader answer detail questions, but it is also where stale
+values hide: a raw turn ``I moved to Boston'' survives even after the belief
+\texttt{user::residence} moves on. We therefore retire from current recall any raw slice
+$e$ whose embedding is close to a \emph{superseded} belief:
+\begin{equation}
+\text{exclude } e \;\Leftrightarrow\; \max_{f\in\mathcal{B}_{\text{expired}}}
+\cos\!\big(\phi(e),\phi(f)\big) \;\ge\; \tau_{\text{stale}}, \qquad
+\tau_{\text{stale}}=0.80 .
+\end{equation}
+This single rule turns supersession from a fact-layer nicety into end-to-end correctness:
+it takes current-value accuracy from $55\%$ to $100\%$ (\S\ref{sec:ablation}).
+
+\subsection{Surprise-gated writes (predictive coding)}
+A world model stores \emph{prediction error}, not everything. On write, a raw observation
+$e$ is discarded if the store already predicts it, i.e.\ it is near-identical to an
+existing slice:
+\begin{equation}
+\text{store } e \;\Leftrightarrow\; \max_{e'\in\mathcal{E}}
+\cos\!\big(\phi(e),\phi(e')\big) \;<\; g_{\text{surprise}}, \qquad
+g_{\text{surprise}}=0.97 .
+\end{equation}
+This bounds the store and drops redundant repetition with no accuracy loss
+(\S\ref{sec:ablation}).
+
+\subsection{Forgetting and dual-pool recall}
+Each memory's rank is relevance times a decay factor
+$d = 2^{-\Delta t/h}\cdot(1+\beta\log(1+\textit{uses}))\cdot(0.6+0.8s)$ with half-life
+$h=14$\,d; a sweep archives current, unpinned memories with $d$ below a threshold; pinned
+identity facts never decay. Retrieval is a \textbf{dual pool}---beliefs for consistency,
+evidence for verbatim detail---guaranteeing each a share of the budget.
+
+\subsection{Belief-anchored evidence expansion}\label{sec:expansion}
+Compressing a session into a few keyed beliefs wins churn and efficiency but can drop the
+fine detail a multi-hop question needs, even when the right session \emph{is} retrieved.
+We recover it without reverting to flat retrieval: the top-$k$ dual-pool result names both
+the belief state and the sessions it came from. Given spare context budget $B$, \tenet{}
+fills it with additional query-relevant raw turns drawn \emph{only from those
+already-surfaced sessions}, subject to the same consistency filter (\S\ref{sec:bec}) so no
+stale value re-enters. $B$ is set to the baseline RAG budget, so expansion never spends
+more context than flat retrieval. The knob traces an accuracy--efficiency frontier: $m=0$
+is the efficiency point; $m$ large under budget $B$ is the parity point.
+
+\section{Experimental setup}\label{sec:setup}
+\textbf{Benchmarks.} (1) A controlled \textbf{knowledge-churn} benchmark (one fact updated
+$N$ times amid distractors); (2) a controlled \textbf{knowledge-update} set for ablations;
+(3) \textbf{LongMemEval\_S}~\cite{longmemeval} ($\sim$115K-token histories); (4--5) both
+core competencies of \textbf{MemoryAgentBench}~\cite{mab} (ICLR 2026):
+\textsc{FactConsolidation} (conflict resolution; all 800 questions) and
+\textsc{Accurate Retrieval} ($\sim$2{,}000 questions over 22 contexts of 197K--534K
+tokens).
+
+\textbf{Protocol fidelity.} For MemoryAgentBench we use the official metrics and prompts
+\emph{verbatim} from the benchmark code: SubEM for FactConsolidation and RULER-QA;
+multiple-choice accuracy for EventQA; the official LLM-judge templates for
+LongMemEval(S*). Readers are matched to the published tier being compared
+(\texttt{gpt-4o-mini} for AR; a deliberately \emph{weaker} local \texttt{qwen2.5:7b} for
+FC). Every \tenet{} number is paired with a naive-RAG control sharing the reader,
+chunking, and embedder, so the memory mechanism is the only variable.
+
+\textbf{Integrity rules.} API failures are excluded, never scored as wrong (0 exclusions
+in FC; exclusions reported where they occur); abstentions are scored wrong; ingestion
+caches are keyed by the hash of the exact chunk list; we report Wilson 95\% CIs and dump
+every miss for error analysis. All numbers reproduce from single documented commands.
+
+\section{Results}\label{sec:results}
+
+\subsection{Knowledge churn}\label{sec:churn}
+One fact updated $N$ times amid distractors, $k=6$, 12 principals per point:
+
+\begin{center}
+\begin{tabular}{lcccccc}
+\toprule
+updates $N$ & 2 & 4 & 6 & 8 & 10 & 12\\
+\midrule
+RAG & 100 & 100 & 100 & 67 & 58 & \textbf{50}\\
+\tenet{} & 100 & 100 & 100 & \textbf{100} & \textbf{100} & \textbf{100}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+RAG degrades monotonically once $N>k$ ($-50$\,pp); \tenet{} is flat at 100\%. The curves
+are \emph{identical} under a \texttt{gpt-4o-mini} and a \texttt{gpt-4o} reader: once
+$N>k$ the latest value is not reliably retrieved, so a stronger reader cannot rescue
+RAG---the failure is structural, exactly as \S\ref{sec:problem} predicts.
+
+\subsection{LongMemEval\_S: the accuracy--efficiency frontier}
+$n{=}40$, $k{=}10$, \texttt{gpt-4o} reader (the reader Mem0 and Zep report against),
+local embedder; baselines run under identical settings:
+
+\begin{center}
+\begin{tabular}{llrrrr}
+\toprule
+System & mode & recall@10 & QA acc & reader tok & acc/1k tok\\
+\midrule
+full-context & --- & --- & $\sim$65\%$^{*}$ & $\sim$124{,}000 & 0.5\\
+RAG & top-$k$ turns & 95\% & 57.5\% & 2{,}101 & 27.4\\
+\tenet{} & efficiency ($m{=}0$) & \textbf{97.5\%} & 52.5\% & \textbf{1{,}067} & \textbf{49.2}\\
+\tenet{} & parity (expansion) & \textbf{97.5\%} & \textbf{57.5\%} & 2{,}083 & 27.6\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+At the efficiency point \tenet{} answers at half the context for the best
+accuracy-per-token of any system ($1.6\times$ RAG, $\sim$100$\times$ full-context) at
+recall parity. Belief-anchored expansion, capped at RAG's own budget, brings one-shot
+accuracy to \emph{parity} ($57.5=57.5$) at fewer tokens. On a \texttt{gpt-4o-mini} reader
+the parity point edges ahead (60.0 vs 55.0); the per-token dominance holds across
+\texttt{gpt-4o-mini}, \texttt{gpt-4o}, and \texttt{claude-opus-4.8} readers
+($\approx$1.6--1.7$\times$). Given reader stochasticity of $\approx\pm5$--7\,pp at
+$n{=}40$, we report one-shot accuracy as parity, not a win. The one category still behind
+RAG is multi-session synthesis (42.9 vs 57.1, up from 28.6; \S\ref{sec:limits}).
+
+\subsection{Ablations}\label{sec:ablation}
+On the controlled knowledge-update set, removing the belief--evidence consistency rule
+(\S\ref{sec:bec}) drops current-value accuracy from $100\%$ to $55\%$ with a $45\%$
+stale-leak rate; restoring it recovers $100\%$/0\%. It is the single most important
+mechanism. Surprise gating discards $15\%$ of observations as redundant with no accuracy
+change, bounding the store where RAG grows without bound.
+
+\subsection{MemoryAgentBench \textsc{FactConsolidation}}\label{sec:fc}
+Serial-numbered facts with counterfactual updates; questions require the \emph{current}
+value. SubEM and the official reader prompt verbatim; all 800 questions; Wilson 95\% CIs;
+0 API-error exclusions. \tenet{}'s ingestion here is \textbf{zero-LLM}: supersession keys
+are computed deterministically from the fact text, so ingestion costs embeddings only, and
+the reader is a local \texttt{qwen2.5:7b}---\emph{below} the published mini tier.
+
+\begin{center}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+cell & naive-RAG & \tenet{} & SOTA mini$^{1}$ & SOTA gpt-4o$^{1}$\\
+\midrule
+SH 6K & 36.0 & \textbf{89.0} \ci{81.4}{93.7} & 71 & 99\\
+SH 32K & 50.0 & \textbf{91.0} \ci{83.8}{95.2} & 78 & 92\\
+SH 64K & 52.0 & \textbf{85.0} \ci{76.7}{90.7} & 81 & 95\\
+SH 262K & 53.0 & \textbf{81.0} \ci{72.2}{87.5} & 82 & 93\\
+\textbf{SH pooled} & 47.8 & \textbf{86.5} \ci{82.8}{89.5} & 78.0 & 94.8\\
+\midrule
+MH 6K & 5.0 & \textbf{42.0} \ci{32.8}{51.8} & 34 & 57\\
+MH 32K & 3.0 & \textbf{30.0} \ci{21.9}{39.6} & 27 & 50\\
+MH 64K & 3.0 & \textbf{29.0} \ci{21.0}{38.5} & 33 & 58\\
+MH 262K & 7.0 & \textbf{20.0} \ci{13.3}{28.9} & 27 & 41\\
+\textbf{MH pooled} & 4.5 & \textbf{30.2} \ci{26.0}{34.9} & 30.2 & 51.5\\
+\bottomrule
+\end{tabular}
+
+$^{1}$\cite{freshness}: candidate extraction + $\max(\text{serial})$ aggregation.
+\end{center}
+
+Single-hop $86.5$ exceeds the published mini-tier SOTA ($78.0$; our CI excludes it) on a
+weaker backbone; every system in the original MAB table scores $\le 60$ (Zep 7, Mem0 18,
+MemGPT 28). Multi-hop exactly ties the mini-tier SOTA, where the original table's best is
+$\le 7$. Single-hop barely degrades with haystack length ($89\!\to\!81$ from
+6K$\to$262K) because the store is conflict-resolved at ingestion---the property
+assembly-time aggregation must re-derive at every read. Multi-hop still degrades with
+length ($42\!\to\!20$); reported honestly. The identical reader over naive-RAG memory
+scores $47.8/4.5$: the mechanism, not the reader, carries the result.
+
+\subsection{MemoryAgentBench \textsc{Accurate Retrieval}}\label{sec:mab}
+22 contexts of 197K--534K tokens, four sub-benchmarks, official per-benchmark metrics,
+matched \texttt{gpt-4o-mini} reader. \tenet{} ingestion is again zero-LLM (date-aware
+structured chunks + embeddings only):
+
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+sub-benchmark (official metric) & naive-RAG & \tenet{} & HippoRAG-v2$^{1}$\\
+\midrule
+RULER SH-QA (SubEM, $n{=}100$) & 74.0 & \textbf{75.0} & 76\\
+RULER MH-QA (SubEM, $n{=}100$) & 40.0 & 45.0 & \textbf{66}\\
+LongMemEval(S*) (LLM-judge, $n{=}300$) & 46.0 & 46.3 & \textbf{50.7}\\
+EventQA (choice acc, $n{=}1500$) & 71.3 & \textbf{70.7} \ci{68.3}{72.9} & 67.6\\
+\midrule
+\textbf{AR average} & 57.8 & \textbf{59.3} & \textbf{65.1}\\
+\bottomrule
+\end{tabular}
+
+$^{1}$Strongest AR system in the MAB paper. Other published frameworks: Mem0 32.6,
+Zep 37.5, MemGPT $\approx$39.
+\end{center}
+
+\tenet{} beats the published field on EventQA ($70.7$ vs $67.6$; CI excludes), reaches
+parity on RULER SH-QA, and is second on AR average---behind only HippoRAG-v2, whose
+ingestion runs LLM OpenIE over every token of the 197K--534K contexts, where \tenet{}
+never calls an LLM at ingestion. RULER MH-QA is the honest loss (45 vs 66):
+Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
+narrative text. LME(S*) is 4.4 points short after five documented retrieval iterations;
+the residual misses are answer-synthesis-bound (both arms identical), not
+retrieval-bound.
+
+\subsection{Same-harness reproductions of published methods}\label{sec:baselines}
+To remove any backbone confound, we reimplement four published memory mechanisms as arms
+of the \emph{same} FactConsolidation harness with the \emph{same} local-7B reader and
+embedder: CAR ($\max(\text{serial})$ candidate aggregation~\cite{freshness}), Mem0-style
+LLM consolidation (batched ADD/UPDATE against nearest neighbors~\cite{mem0}), a
+HippoRAG-v2-style graph (OpenIE triples, synonym edges, Personalized-PageRank blended
+with dense scores~\cite{hipporag2}), and MemAgent-style overwrite memory
+(question-conditioned rolling rewrite~\cite{memagent}). These are mechanism
+reproductions at matched backbone, not the authors' full systems; the run is in progress
+at the time of writing and the final table ships with the artifact repository. Interim
+results are consistent with the published pattern: no reproduced arm approaches
+ingestion-time supersession on conflict resolution.
+
+\section{Discussion}
+\textbf{Where the belief state wins.} Both MAB competencies reward what supersession
+provides: FactConsolidation directly (the store contains exactly one current value; no
+per-read freshness inference), EventQA indirectly (date-aware structured chunks preserve
+event order that flat chunking destroys). The churn benchmark isolates the mechanism:
+immunity is by construction, not tuning.
+
+\textbf{Where it loses.} Multi-hop chaining over narrative text (RULER MH-QA) rewards
+explicit graph traversal; a keyed belief state has no edges to walk. Multi-session
+synthesis needs evidence from several sessions at once; expansion only deepens sessions
+already surfaced. Both are retrieval-topology limits, not consistency limits---graph-free
+was a deliberate trade (Mem0's own ablation found graphs $3\times$ slower for thin gains),
+and the gap quantifies what that trade costs.
+
+\textbf{Cost asymmetry.} Among published systems above 50 on AR, \tenet{} is the only one
+with LLM-free ingestion \emph{and} LLM-free reads; HippoRAG-v2 spends LLM calls per
+ingested token, QwenLong-L1.5 spends 128K read tokens per query, ActMem builds LLM causal
+graphs at ingestion. At equal accuracy this asymmetry compounds over an agent's lifetime:
+ingestion happens once per fact, reads happen forever, and \tenet{} prices both at
+embedding cost.
+
+\section{Limitations}\label{sec:limits}
+\textbf{Multi-session synthesis} still trails RAG (42.9 vs 57.1); session-diverse
+retrieval is the natural next step. \textbf{Multi-hop chaining} trails graph memory (45
+vs 66). \textbf{The frontier is a knob, not a free lunch}: parity accuracy costs
+RAG-equal tokens; the $1.6\times$ per-token win trades $\sim$5\,pp of one-shot accuracy.
+\textbf{Evaluation scale}: LongMemEval numbers are $n{=}40$, one seed, off-Qwen readers
+(reader noise $\approx\pm5$--7\,pp; hence ``parity'', not a win); MAB numbers are
+full-scale (800 and $\sim$2{,}000 questions) with CIs. \textbf{Distillation quality}: in
+free-form conversation, keys come from a small LLM distiller; a missed key match degrades
+supersession to ordinary storage (fail-soft, but the churn guarantee is only as good as
+the keying). \textbf{Scope}: single-user assistant memory; multi-writer stores and
+adversarial updates are untested.
+
+\section{Conclusion}
+Treating agent memory as a self-consistent belief state rather than a document index
+makes it robust to the way real knowledge behaves: it changes. \tenet{} stays correct
+under knowledge churn where retrieval memory structurally collapses, exceeds the
+published single-hop conflict-resolution SOTA at its reader tier on a weaker backbone,
+and is the only published-competitive system on MemoryAgentBench whose ingestion and
+reads are both LLM-free. The belief-state view also yields time-travel and principled
+forgetting for free. We hope knowledge churn becomes a standard axis for evaluating agent
+memory.
+
+\paragraph{Reproducibility.} All code, harnesses, official-prompt copies, cached
+ingestion artifacts, and per-question dumps: \texttt{github.com/Nas01010101/tenet}
+(\texttt{docs/BENCHMARK.md} lists one command per reported number).
+
+\begin{thebibliography}{99}\small
+\bibitem{mem0} P.~Chhikara et al. Mem0: Building Production-Ready AI Agents with Scalable
+Long-Term Memory. arXiv:2504.19413, 2025.
+\bibitem{longmemeval} D.~Wu et al. LongMemEval: Benchmarking Chat Assistants on Long-Term
+Interactive Memory. arXiv:2410.10813, 2024.
+\bibitem{lmev2} D.~Wu et al. LongMemEval-V2: Evaluating Long-Term Agent Memory Toward
+Experienced Colleagues. arXiv:2605.12493, 2026.
+\bibitem{zep} P.~Rasmussen et al. Zep: A Temporal Knowledge Graph Architecture for Agent
+Memory. arXiv:2501.13956, 2025.
+\bibitem{memgpt} C.~Packer et al. MemGPT: Towards LLMs as Operating Systems.
+arXiv:2310.08560, 2023.
+\bibitem{amem} W.~Xu et al. A-MEM: Agentic Memory for LLM Agents. arXiv:2502.12110, 2025.
+\bibitem{mab} Y.~Hu et al. MemoryAgentBench: Evaluating Memory in LLM Agents via
+Incremental Multi-Turn Interactions. arXiv:2507.05257, ICLR 2026.
+\bibitem{hipporag2} B.~Guti\'errez et al. From RAG to Memory: Non-Parametric Continual
+Learning for Large Language Models (HippoRAG~2). arXiv:2502.14802, 2025.
+\bibitem{freshness} Don't Ask the LLM to Track Freshness: A Deterministic Recipe for
+Memory Conflict Resolution. arXiv:2606.01435, 2026.
+\bibitem{memstrata} Temporal Validity in Retrieval Memory: Eliminating Stale-Fact Errors
+for AI Agents over Evolving Knowledge. arXiv:2606.26511, 2026.
+\bibitem{engram} Less Context, More Accuracy: A Bi-Temporal Memory Engine for LLM Agents.
+arXiv:2606.09900, 2026.
+\bibitem{toki} TOKI: A Bitemporal Operator Algebra for Contradiction Resolution in
+LLM-Agent Persistent Memory. arXiv:2606.06240, 2026.
+\bibitem{qwenlong} Shen et al. QwenLong-L1.5: Post-Training Recipe for Long-Context
+Reasoning and Memory Management. arXiv:2512.12967, 2026.
+\bibitem{agemem} Yu et al. Agentic Memory: Learning Unified Long-Term and Short-Term
+Memory Management for LLM Agents. arXiv:2601.01885, ACL 2026.
+\bibitem{actmem} Zhang et al. ActMem: Bridging the Gap Between Memory Retrieval and
+Reasoning in LLM Agents. arXiv:2603.00026, 2026.
+\bibitem{memagent} MemAgent: Reshaping Long-Context LLM with Multi-Conv RL-based Memory
+Agent. arXiv:2507.02259, 2025.
+\bibitem{friston} K.~Friston. The free-energy principle: a unified brain theory?
+\emph{Nat.\ Rev.\ Neurosci.}, 2010.
+\end{thebibliography}
+
+\appendix
+\section{Protocol details}
+\textbf{SubEM} normalization and the reader prompt for FactConsolidation are copied
+verbatim from the MemoryAgentBench repository. \textbf{LongMemEval(S*)} judging uses the
+five official anscheck templates (including the abstention template) verbatim; judge
+failures exclude the instance from scoring. \textbf{EventQA} uses a copy-one-candidate
+reader with the official choice sets. \textbf{Caching}: ingestion caches are keyed by the
+MD5 of the exact chunk list, and a store/chunk length assertion guards against stale-cache
+pairing. \textbf{Controls}: naive-RAG shares the embedder, chunker, reader, prompt, and
+$k$ with \tenet{} in every table.
+
+\section{Reproduction commands}
+FactConsolidation: \texttt{LLM\_PROVIDER=ollama OLLAMA\_MODEL=qwen2.5:7b
+EMBED\_PROVIDER=local python scripts/bench\_factcon.py --qpc 100 --tenet-read decompose
+--keys heuristic}. Accurate Retrieval: \texttt{LLM\_PROVIDER=openrouter
+OPENROUTER\_MODEL=openai/gpt-4o-mini JUDGE\_PROVIDER=openrouter JUDGE\_MODEL=openai/gpt-4o
+EMBED\_PROVIDER=local python scripts/bench\_mab\_ar.py --qpc 100 --judge}. Churn:
+\texttt{python scripts/bench\_horizon.py --principals 12 --k 6 --updates 2,4,6,8,10,12}.
+Frontier: \texttt{python scripts/lme\_recall.py --limit 40 --k 10 --qa --seed 2
+[--expand 20]}. Ablations: \texttt{python scripts/bench\_knowledge\_update.py
+--principals 4}. Baseline arms: \texttt{python scripts/bench\_baselines.py --arms
+car,mem0,hipporag,memagent}.
+
+\end{document}

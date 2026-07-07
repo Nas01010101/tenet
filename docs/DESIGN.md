@@ -65,10 +65,10 @@ be the linkable "code file that uses Alibaba Cloud services/APIs".
 
 ## Build order status
 - [x] Track locked
-- [x] MemoryCore — store/recall/forget/dedup/supersession, thread-safe (`src/memory.py`)
+- [x] MemoryCore — store/recall/forget/dedup/supersession, thread-safe (`src/tenet/memory.py`)
 - [x] eval harness — 100% recall@3 vs 38% baseline, 94.2% ctx saved (`scripts/eval_recall.py`)
-- [x] MCP server — remember/recall/forget_stale/memory_stats (`src/mcp_server.py`)
-- [x] FastAPI backend built + tested (`src/api.py`) — **deploy to AliCloud still pending (needs AccessKey)**
+- [x] MCP server — remember/recall/forget_stale/memory_stats (`src/tenet/mcp_server.py`)
+- [x] FastAPI backend built + tested (`src/tenet/api.py`) — **deploy to AliCloud still pending (needs AccessKey)**
 - [ ] Alibaba Cloud deploy + proof recording  ← **blocked on user's AliCloud AccessKey**
 - [ ] architecture diagram (render docs/DESIGN.md ascii → image)
 - [ ] 3-min demo video + blog post
