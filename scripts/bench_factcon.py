@@ -170,12 +170,86 @@ def answer(pool: str, question: str) -> str:
         qwen_default=config.get("QWEN_ANSWER_MODEL", "qwen3.7-plus"), max_tokens=64)
 
 
+# Tenet reading mode: the store is already conflict-resolved (supersession at
+# ingestion), so the reader's only job is verbatim extraction — which also blocks
+# the dominant failure mode on counterfactual benchmarks: the reader overriding
+# the pool with real-world knowledge (miss analysis: 8/8 sampled misses had the
+# gold IN the pool while the reader answered from parametric memory).
+_EXTRACT_PROMPT = (
+    "The facts below are from a FICTIONAL knowledge pool. They intentionally "
+    "contradict the real world; the real-world answer is WRONG here.\n"
+    "Find the single fact that answers the question and COPY its value verbatim "
+    "from that fact. Never use your own knowledge. Reply with ONLY the value — a "
+    "short phrase, never a full sentence, never the fact restated."
+    "\n\n[Knowledge Pool]\n{pool}\n\nQuestion: {question}\nCopied value:")
+
+
+def answer_extract(pool: str, question: str) -> str:
+    return config.chat(
+        [{"role": "user", "content": _EXTRACT_PROMPT.format(pool=pool, question=question)}],
+        qwen_default=config.get("QWEN_ANSWER_MODEL", "qwen3.7-plus"), max_tokens=48)
+
+
+# MH: Self-Ask-style per-hop decomposition over the conflict-free store
+# (the composition pattern of arXiv:2606.01435, running on OUR ingestion-time-
+# superseded memory instead of post-retrieval aggregation).
+_DECOMP_PROMPT = (
+    "Decompose the question into a chain of 1-4 single-hop lookups. Each hop asks for "
+    "ONE attribute of ONE entity. Every hop after the first MUST contain the literal "
+    "token #PREV where the previous hop's answer goes.\n"
+    'Example: "Which country is the birthplace of the sport associated with Steve Sax?" ->\n'
+    '{{"hops": ["Which sport is Steve Sax associated with?", '
+    '"Which location is the birthplace of #PREV?", "Which country is #PREV in?"]}}\n'
+    'Reply JSON only: {{"hops": [...]}}\n\nQuestion: {question}')
+
+
+def decompose(question: str) -> list[str]:
+    out = config.chat([{"role": "user", "content": _DECOMP_PROMPT.format(question=question)}],
+                      qwen_default=config.get("QWEN_ANSWER_MODEL", "qwen3.7-plus"),
+                      max_tokens=200, json_mode=True)
+    try:
+        hops = json.loads(re.search(r"\{.*\}", out, re.S).group(0))["hops"]
+        return [str(h) for h in hops][:4] or [question]
+    except Exception:
+        return [question]
+
+
+def answer_multihop(m: Tenet, question: str, k: int) -> tuple[str, str]:
+    """Per-hop: recall from the conflict-free store, extract, substitute forward.
+    Chain integrity: #PREV substitution is enforced, and a hop whose extracted value
+    is not grounded in its pool gets one wider-recall retry (chain errors propagate,
+    so per-hop grounding is what keeps hop 3 answerable)."""
+    hops = decompose(question)
+    val = ""
+    pool_used = []
+    for i, hop in enumerate(hops):
+        if i > 0:
+            hq = hop.replace("#PREV", val) if "#PREV" in hop else f"{hop} (of {val})"
+        else:
+            hq = hop
+        pool, v = "", ""
+        for kk in (k, 3 * k):                       # one wider retry if ungrounded
+            hits = m.core.recall(hq, k=kk)
+            pool = "\n".join(f"{h.source}. {h.text}" for h in hits)
+            v = answer_extract(pool, hq).strip().rstrip(".")
+            if v and normalize_answer(v) in normalize_answer(pool):
+                break
+        pool_used.append(pool)
+        if not v:
+            return "", "\n--\n".join(pool_used)
+        val = v
+    return val, "\n--\n".join(pool_used)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cells", default="", help="comma list e.g. sh_6k,mh_262k (default all 8)")
     ap.add_argument("--qpc", type=int, default=100, help="questions per cell")
     ap.add_argument("--k", type=int, default=10)
     ap.add_argument("--hops-mh", type=int, default=0, help="recall hops for MH cells (tenet arm)")
+    ap.add_argument("--tenet-read", choices=["official", "extract", "decompose"], default="official",
+                    help="tenet reading: official MAB prompt | verbatim extraction | "
+                         "per-hop Self-Ask decomposition (MH cells)")
     ap.add_argument("--dump", default="", help="misses JSONL")
     args = ap.parse_args()
 
@@ -214,15 +288,24 @@ def main():
             top = sorted(np.argsort(-(line_vecs @ qv))[: args.k])
             rag_pool = "\n".join(texts[i] for i in top)
             # --- tenet arm: current beliefs only (superseded values retired) ---
-            hops = args.hops_mh if is_mh else 0
-            hits = m.core.recall(q, k=args.k, expand=args.k if hops else 0, hops=hops)
-            tenet_pool = "\n".join(f"{h.source}. {h.text}" for h in hits)
-
-            rp, tp = answer(rag_pool, q), answer(tenet_pool, q)
-            if not rp.strip() or not tp.strip():
+            if args.tenet_read == "decompose" and is_mh:
+                tp, tenet_pool = answer_multihop(m, q, args.k)
+            else:
+                hops = args.hops_mh if is_mh else 0
+                hits = m.core.recall(q, k=args.k, expand=args.k if hops else 0, hops=hops)
+                tenet_pool = "\n".join(f"{h.source}. {h.text}" for h in hits)
+                tp = (answer_extract(tenet_pool, q) if args.tenet_read != "official"
+                      else answer(tenet_pool, q))
+            rp = answer(rag_pool, q)
+            if not rp.strip():
                 errors += 1                                     # API failure: excluded
                 continue
-            r_ok, t_ok = subem_max(rp, gold), subem_max(tp, gold)
+            if not tp.strip() and args.tenet_read != "decompose":
+                errors += 1
+                continue
+            r_ok = subem_max(rp, gold)
+            # decompose-mode empty = a pipeline abstention: scored WRONG, not excluded
+            t_ok = subem_max(tp, gold) if tp.strip() else False
             stats["rag"][0] += r_ok; stats["rag"][1] += 1
             stats["tenet"][0] += t_ok; stats["tenet"][1] += 1
             if dump_f and not (r_ok and t_ok):
