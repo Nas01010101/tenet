@@ -9,7 +9,7 @@
   <a href="paper/tenet.pdf"><b>📄 Paper</b></a> ·
   <a href="docs/BENCHMARK.md"><b>Benchmarks</b></a> ·
   <a href="docs/COMPARISON.md"><b>vs Mem0 / Zep / Letta</b></a> ·
-  <a href="src/mcp_server.py"><b>MCP server</b></a> ·
+  <a href="src/tenet/mcp_server.py"><b>MCP server</b></a> ·
   <a href="scripts/demo_agent.py"><b>Demo</b></a>
 </p>
 
@@ -18,7 +18,7 @@
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-3776ab.svg?logo=python&logoColor=white)](#quickstart)
 [![Qwen Cloud](https://img.shields.io/badge/built%20on-Qwen%20Cloud-6a5acd.svg)](https://qwencloud-hackathon.devpost.com)
-[![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/mcp_server.py)
+[![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/tenet/mcp_server.py)
 [![stars](https://img.shields.io/github/stars/Nas01010101/tenet?style=flat&color=8b7cf8)](https://github.com/Nas01010101/tenet/stargazers)
 
 *A memory that stays true as the world changes.*
@@ -123,7 +123,7 @@ Details: [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §7.
 
 ## The agent
 
-Tenet ships as a personal assistant ([`src/agent.py`](src/agent.py)) on Qwen Cloud:
+Tenet ships as a personal assistant ([`src/tenet/agent.py`](src/tenet/agent.py)) on Qwen Cloud:
 ```
 you › Hi! I'm Alex, I live in Montreal and work as a data analyst.
 assistant › Nice to meet you, Alex! How's the analyst work in Montreal?   [remembered 2 facts]
@@ -133,7 +133,7 @@ you › Where do I live and what's my job now?
 assistant › You live in Toronto and you're a senior analyst. Congrats on the promotion!
 ```
 ```bash
-python src/agent.py            # interactive assistant
+python -m tenet.agent          # interactive assistant (or: tenet-agent)
 python scripts/demo_agent.py   # the scripted story (video walkthrough)
 ```
 
@@ -150,7 +150,7 @@ Running from source (full assistant + surfaces):
 cp .env.example .env && chmod 600 .env      # add DASHSCOPE_API_KEY (Qwen Cloud)
 pip install -e .
 python scripts/smoke_test.py                # verify connectivity
-uvicorn api:app --host 0.0.0.0 --port 8000  # (from src/) HTTP API incl. POST /chat
+uvicorn tenet.api:app --host 0.0.0.0 --port 8000  # HTTP API incl. POST /chat
 python -m tenet.mcp_server                   # or the MCP server (learn/recall/forget/stats)
 ```
 
@@ -173,14 +173,15 @@ positioning vs Mem0/Zep/Letta/Mastra: [`docs/COMPARISON.md`](docs/COMPARISON.md)
 
 ## Repository
 ```
-paper/tenet.md            the paper
-src/  agent.py            the assistant
-      tenet.py memory.py distill.py config.py   the belief-state memory engine
-      mcp_server.py api.py alicloud_oss.py       surfaces + Alibaba Cloud deploy
-scripts/ demo_agent.py    video walkthrough
-         bench_horizon.py bench_knowledge_update.py lme_recall.py   benchmarks
-         test_memory.py test_tenet_e2e.py smoke_test.py            tests
-docs/ BENCHMARK.md COMPARISON.md DESIGN.md DEPLOY.md SOTA.md  architecture.svg horizon.svg
+paper/tenet.md tenet_full.pdf   the paper (2-page + full preprint)
+src/tenet/  core.py memory.py distill.py config.py   the belief-state memory engine
+            agent.py                                  the assistant
+            mcp_server.py api.py alicloud_oss.py      surfaces + Alibaba Cloud deploy
+examples/   quickstart, assistant loop, MCP client, LangChain adapter
+scripts/    demo_agent.py    video walkthrough
+            bench_horizon.py bench_factcon.py bench_mab_ar.py lme_recall.py   benchmarks
+            test_memory.py test_tenet_e2e.py smoke_test.py                    tests
+docs/ BENCHMARK.md COMPARISON.md DESIGN.md DEPLOY.md  architecture.svg horizon.svg
 ```
 
 ## Citation
