@@ -228,12 +228,16 @@ class MemoryCore:
             rows = self._rows_as_of(as_of)
             if not rows:
                 return []
-            scored = []
-            for row in rows:
-                emb = np.frombuffer(row["embedding"], dtype=np.float32)
-                relevance = float(np.dot(qv, emb))        # cosine (both unit)
-                rank = relevance * self._decay(row)       # forgetting-aware rank
-                scored.append((rank, relevance, row))
+            # One BLAS matmul instead of a per-row python loop (docs/HARNESS.md §3:
+            # 28-33× on the scoring step; deserialization done once, contiguously).
+            mat = np.frombuffer(
+                b"".join(row["embedding"] for row in rows), dtype=np.float32
+            ).reshape(len(rows), -1)
+            rels = mat @ qv                               # cosine (both unit)
+            scored = [
+                (float(rel) * self._decay(row), float(rel), row)
+                for rel, row in zip(rels, rows)
+            ]
             scored.sort(key=lambda x: x[0], reverse=True)
 
             # World-model consistency: the current facts are the belief state. A raw
