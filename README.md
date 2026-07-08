@@ -174,14 +174,23 @@ powered by Qwen Cloud (Alibaba Cloud Model Studio). Details: [`docs/DESIGN.md`](
 positioning vs Mem0/Zep/Letta/Mastra: [`docs/COMPARISON.md`](docs/COMPARISON.md).
 
 ## Reproduce the paper
+Every benchmark is one CLI command — provider preset + config + git-sha logged to
+`data/bench_runs.jsonl`. `tenet bench run` dispatches to the `scripts/bench_*.py` that
+produce the paper numbers (the source of truth); it never reimplements them.
 ```bash
-python scripts/test_memory.py ; python scripts/test_tenet_e2e.py               # capabilities
-python scripts/bench_horizon.py --principals 12 --k 6 --updates 2,4,6,8,10,12  # Fig. 1 (churn)
-python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2                    # efficiency point
-python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2 --expand 20        # parity point (budget-capped)
-python scripts/bench_knowledge_update.py --principals 4                         # ablation + efficiency
-# off-Qwen: prefix with  LLM_PROVIDER=openrouter EMBED_PROVIDER=local OPENROUTER_MODEL=openai/gpt-4o-mini
+tenet bench list                        # all benchmarks + which figure/§ each reproduces
+tenet bench run <name> --dry-run ...     # print the exact command+env, run nothing
+tenet bench results                     # table of past runs
+
+python scripts/test_memory.py ; python scripts/test_tenet_e2e.py                  # capabilities
+tenet bench run churn --provider ollama --principals 12 --k 6 --updates 2,4,6,8,10,12   # Fig.1 churn
+tenet bench run lme-recall --provider openrouter --limit 40 --k 10 --seed 2 --qa            # efficiency point
+tenet bench run lme-recall --provider openrouter --limit 40 --k 10 --seed 2 --qa --expand 20  # parity point
+tenet bench run knowledge-update --provider ollama --principals 4                 # supersession ablation
 ```
+`--provider` presets: `ollama` (fully offline: local embeddings + qwen2.5:7b reader),
+`openrouter` (local embeddings + gpt-4o-mini reader), `local` (embeddings only),
+`qwen` (Qwen Cloud). Full matrix + read-path perf analysis: [`docs/BENCHMARK.md`](docs/BENCHMARK.md), [`docs/HARNESS.md`](docs/HARNESS.md).
 
 ## Repository
 ```

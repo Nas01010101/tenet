@@ -186,6 +186,21 @@ def cmd_serve_api(args) -> int:
     return 0
 
 
+# ---- bench (dispatcher lives in bench_cli.py; thin wrappers here) -----------
+
+def cmd_bench(args) -> int:
+    from . import bench_cli
+    action = getattr(args, "bench_action", None)
+    if action == "list":
+        return bench_cli.cmd_bench_list(args, _out, _err)
+    if action == "results":
+        return bench_cli.cmd_bench_results(args, _out, _err)
+    if action == "run":
+        return bench_cli.cmd_bench_run(args, getattr(args, "extra", []), _out, _err)
+    _err("usage: tenet bench {list|run|results}")
+    return 1
+
+
 # ---- argument parsing -------------------------------------------------------
 
 def _add_db(p: argparse.ArgumentParser) -> None:
@@ -222,12 +237,48 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("--port", type=int, default=8000)
     s.set_defaults(func=cmd_serve_api)
 
+    _build_bench_parser(sub)
+
     return p
+
+
+def _build_bench_parser(sub) -> None:
+    """`tenet bench {list,run,results}` — thin dispatcher over scripts/bench_*.py."""
+    b = sub.add_parser("bench", help="run/enumerate the reproducible paper benchmarks")
+    bsub = b.add_subparsers(dest="bench_action")
+    b.set_defaults(func=cmd_bench)
+
+    bsub.add_parser("list", help="enumerate available benchmarks + what each reproduces")
+
+    r = bsub.add_parser("run", help="run a benchmark via its source-of-truth script")
+    r.add_argument("name", help="benchmark id (see: tenet bench list)")
+    r.add_argument("--provider", choices=["qwen", "local", "ollama", "openrouter"],
+                   default=None, help="env preset: local/ollama keyless embeddings + reader")
+    r.add_argument("--env", action="append", metavar="KEY=VAL",
+                   help="extra env override (repeatable), e.g. --env OLLAMA_MODEL=qwen2.5:3b")
+    r.add_argument("--qpc", type=int, default=None, help="questions per cell (factcon/mab-ar)")
+    r.add_argument("--cells", default=None, help="comma list of cells (factcon/mab-ar)")
+    r.add_argument("--k", type=int, default=None, help="retrieval budget top-k")
+    r.add_argument("--seed", type=int, default=None, help="random seed (lme-recall)")
+    r.add_argument("--principals", type=int, default=None, help="principals (churn/knowledge-update)")
+    r.add_argument("--dry-run", action="store_true", help="print the exact command+env, don't run")
+    # Any flag not declared above (e.g. --updates, --keys, --hops-mh) is captured by
+    # parse_known_args in main() and forwarded verbatim to the script.
+
+    res = bsub.add_parser("results", help="pretty table of past runs (data/bench_runs.jsonl)")
+    res.add_argument("--limit", type=int, default=20, help="most-recent N runs (default 20)")
 
 
 def main(argv=None) -> int:
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    # parse_known_args so `bench run <name>` can forward script-specific flags
+    # (--updates, --keys, --hops-mh, …) verbatim without declaring every one here.
+    args, unknown = parser.parse_known_args(argv)
+    if unknown:
+        if getattr(args, "command", None) == "bench" and getattr(args, "bench_action", None) == "run":
+            args.extra = unknown
+        else:
+            parser.error(f"unrecognized arguments: {' '.join(unknown)}")
     if not getattr(args, "command", None):
         parser.print_help()
         return 1
