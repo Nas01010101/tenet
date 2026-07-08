@@ -180,6 +180,8 @@ def cmd_serve_mcp(args) -> int:
 
 def cmd_serve_api(args) -> int:
     import uvicorn
+    host = "localhost" if args.host in ("0.0.0.0", "") else args.host
+    _dim(f"belief-state demo → http://{host}:{args.port}/  ·  API docs → http://{host}:{args.port}/docs")
     uvicorn.run("tenet.api:app", host=args.host, port=args.port)
     return 0
 

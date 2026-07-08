@@ -22,6 +22,20 @@ What you remember about the user:
 {memories}"""
 
 
+def _is_pure_question(msg: str) -> bool:
+    """True if every sentence in the turn is interrogative — nothing to learn from.
+
+    Guards the store against small distillers hallucinating facts out of questions
+    ("Where do I live?" -> fabricated residence) which would then supersede the
+    real current value. Mixed turns ("I moved to Lisbon. Where do I live?") still
+    ingest normally.
+    """
+    parts = [p.strip() for p in msg.replace("!", ".").split(".") if p.strip()]
+    if not parts:
+        return msg.strip().endswith("?")
+    return all(p.endswith("?") for p in parts)
+
+
 class MemoryAgent:
     def __init__(self, db_path=None, *, now=time.time):
         self.m = Tenet(db_path, now=now) if db_path else Tenet(now=now)
@@ -36,7 +50,8 @@ class MemoryAgent:
             qwen_default=config.QWEN_MODEL, max_tokens=300,
         )
         before = self.m.stats()["superseded"]
-        learned = self.m.ingest(user_msg)          # extract + store facts (with supersession)
+        # extract + store facts (with supersession); pure questions carry no facts
+        learned = [] if _is_pure_question(user_msg) else self.m.ingest(user_msg)
         superseded = self.m.stats()["superseded"] - before
         return {"reply": reply, "learned": len(learned), "superseded": superseded,
                 "recalled": [x.text for x in mems]}
