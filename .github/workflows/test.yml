@@ -20,7 +20,7 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-bge-small-${{ runner.os }}
-      - run: pip install -q numpy sentence-transformers mcp
+      - run: pip install -q numpy sentence-transformers mcp langgraph
       - name: capability tests (deterministic, no LLM)
         run: python scripts/test_memory.py
       - name: fact-dynamics (world-model) tests (deterministic, no LLM)
@@ -29,6 +29,10 @@ jobs:
         run: python scripts/test_agent_uncertainty.py
       - name: provider-error-handling tests (deterministic, stubbed chat client, no LLM)
         run: python scripts/test_errors.py
+      - name: LangGraph BaseStore adapter tests (deterministic, no LLM)
+        run: python scripts/test_langgraph_store.py
+      - name: adaptive multi-hop navigation tests (deterministic, no LLM)
+        run: python scripts/test_navigate.py
 
   install-smoke:
     runs-on: ubuntu-latest
