@@ -61,6 +61,22 @@ def recall(query: str, k: int = 5, char_budget: int | None = None) -> str:
 
 
 @mcp.tool()
+def navigate(query: str, budget: int = 4) -> str:
+    """Adaptive multi-hop recall: deepens associative hops only while new evidence
+    clears a relevance-gain gate; LLM-free (embeddings + cosine only, no chat call).
+    Use over plain `recall` for multi-hop / bridging questions, where the answer
+    is connected to the query only through an intermediate memory a flat top-k
+    search would miss. `budget` caps hop depth (max_hops); stops earlier on its
+    own once a deeper hop stops surfacing new relevant evidence."""
+    mems, trace = _core.navigate(query, max_hops=budget)
+    if not mems:
+        return "(no relevant memories)"
+    lines = [f"[{m.score:.2f}{'📌' if m.pinned else ''}] {m.text}" for m in mems]
+    lines.append(f"(navigated {trace[-1]['hop']} hop(s))")
+    return "\n".join(lines)
+
+
+@mcp.tool()
 def doubts(threshold: float = 0.5) -> str:
     """List current keyed facts the learned world model doubts (P(still valid)
     < threshold, from per-key-class survival fitted on this store's own

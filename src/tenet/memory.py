@@ -28,6 +28,7 @@ import numpy as np
 
 from . import config
 from .dynamics import Dynamics
+from .navigate import navigate as _navigate
 
 _DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / "data" / "tenet.db"
 
@@ -353,6 +354,24 @@ class MemoryCore:
                         taken += 1
                     fresh_rows = [row for row in fresh_rows if row["id"] not in have]
             return out
+
+    # ---- adaptive navigation (LLM-free multi-hop) -------------------------
+    def navigate(
+        self,
+        query: str,
+        *,
+        k: int = 10,
+        max_hops: int = 4,
+        tau_gain: float = 0.15,
+        char_budget: int | None = None,
+    ) -> tuple[list[Memory], list[dict]]:
+        """Adaptive-depth associative recall: same read path as `recall`, but
+        descends further hops only while new evidence clears a relevance-gain
+        gate, stopping the moment returns diminish. LLM-free. Does not change
+        default `recall()` behaviour — see tenet.navigate.navigate for the full
+        escalation-schedule / adaptive-stop docstring and trace format."""
+        return _navigate(self, query, k=k, max_hops=max_hops, tau_gain=tau_gain,
+                          char_budget=char_budget)
 
     # ---- fact dynamics (the world-model layer) -----------------------------
     def _dynamics(self):

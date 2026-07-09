@@ -75,6 +75,12 @@ class Tenet:
     def recall(self, query: str, **kw) -> list[Memory]:
         return self.core.recall(query, **kw)
 
+    def navigate(self, query: str, **kw):
+        """Adaptive-depth, LLM-free associative recall — deepens hops only while
+        new evidence clears a relevance-gain gate. See MemoryCore.navigate /
+        tenet.navigate.navigate for the full docstring."""
+        return self.core.navigate(query, **kw)
+
     def forget_sweep(self) -> int:
         return self.core.forget_sweep()
 
