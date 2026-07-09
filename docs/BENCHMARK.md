@@ -169,6 +169,64 @@ backbone, not the authors' full systems.
 Reproduce: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local \
 python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --cells sh_6k,mh_6k,sh_32k,mh_32k --qpc 100`
 
+### 6.2 Strong-reader tier (Qwen Cloud `qwen3.7-plus`) + navigate() A/B (2026-07-09)
+A separate, clearly-labelled backbone tier — **NOT** the qwen2.5:7b table above. Same
+harness, same SubEM, same embedder (bge-small local), same FC ingestion caches. Smoke n=20
+per cell, 0 API exclusions, Wilson 95% CIs. Two findings.
+
+**(a) navigate() adaptive-depth recall shows no measured benefit here.** Single-variable
+A/B (`scripts/bench_factcon.py --nav`): the `tenet` arm uses fixed-hops `recall`, the
+`tenet_nav` arm uses `navigate()` (saturation-gated adaptive depth), **identical reader**
+(`--tenet-read extract`), prompts, seed, k=10 — only pool construction differs.
+
+| cell (n=20) | RAG | tenet fixed | tenet_nav | Δ nav | baseline |
+|---|---:|---:|---:|---:|---|
+| mh_6k | 20.0 | 15.0 [5.2,36.0] | 15.0 [5.2,36.0] | **+0.0** | hops=0 (default) |
+| sh_6k | 95.0 | 90.0 [69.9,97.2] | 90.0 [69.9,97.2] | **+0.0** | hops=0 (default) |
+| mh_6k | 20.0 | 25.0 [11.2,46.9] | 15.0 [5.2,36.0] | **−10.0** | hops=4 (fixed-deep) |
+| sh_6k | 95.0 | 90.0 [69.9,97.2] | 85.0 [64.0,94.8] | **−5.0** | hops=4 (fixed-deep) |
+
+Null vs the default recall on both axes; slightly negative vs an over-fetching fixed-deep
+baseline. All deltas are inside the n=20 CIs. The spec falsifier ("fixed depth over-fetches
+simple / under-fetches multi-hop; adaptive fixes both") does **not** bite at this tier: the
+embedding-gain stop fires at ~2 hops and under-fetches genuine MH chains, and a strong reader
+is robust to the extra pool, so early-stopping buys no precision win. navigate() stays a
+mechanism contribution (LLM-free adaptive depth) with **no measured accuracy benefit at the
+tested tiers** — stated honestly, not oversold.
+
+**(b) Reader strength rescues naive-RAG on bounded context, but not under churn.** The same
+naive-RAG mechanism, only the backbone changed: FC sh_6k **36.0 → 95.0**, mh_6k **5.0 → 20.0**
+(qwen2.5:7b → qwen3.7-plus). A strong reader does the `max(serial)` reasoning over raw stale
+lines itself, so Tenet's *absolute* margin over RAG compresses (Tenet SH-pooled 86.5 vs RAG
+47.8 at 7b = +38.7pp; a matched flat-pool extract Tenet arm is 90 vs RAG 95 on sh_6k at
+qwen3.7-plus). **But the structural win persists where a reader can't help** — the long-horizon
+churn test reproduces end-to-end on Qwen Cloud: as a fact is updated 4→8 times, RAG degrades
+**100% → 67%** (top-k fills with stale versions) while Tenet holds **100% → 100%**
+(`bench_horizon.py --principals 3 --distractors 6 --updates 4,8`, n=3/point). Reader strength
+cannot rescue RAG when the top-k *physically* fills with stale versions — that regime is
+tier-independent.
+
+Reproduce: `LLM_PROVIDER=qwen EMBED_PROVIDER=local python scripts/bench_factcon.py \
+--cells sh_6k,mh_6k --qpc 20 --nav --hops-mh 0 --nav-max-hops 4 --tenet-read extract`
+
+### 6.3 Local 16GB serving tier (RTX 3080 Laptop, ollama 0.31.1)
+Serving-stack ladder for the biggest usable Qwen on one 16GB GPU (fixed 150-word prompt,
+`num_predict=220`, temp 0; VRAM from `/api/ps`):
+
+| model | quant | VRAM resident | gen tok/s | TTFT (cold) | usable ≥10 tok/s |
+|---|---|---:|---:|---:|:--:|
+| qwen2.5:14b | Q4_K_M | 9.47 GB (100% GPU) | 39.8 | ~7.1 s | ✅ **biggest usable** |
+| qwen3.5:9b-q8_0 | Q8_0 | 9.24 GB (100% GPU) | 41.4 | ~9.2 s | ✅ |
+| qwen*:32b | Q3_K_M | 15.9 GB weights → spills | est. <10 (partial offload) | — | ❌ |
+
+Verdict: **qwen2.5:14b (Q4_K_M)** is the largest model that fully fits (6.5GB headroom) and
+sustains ~40 tok/s, 4× the usable bar. 32B was not pulled — Q3_K_M weights alone are 15.94GB
+(bartowski GGUF card), so with KV cache + overhead it exceeds 16GB and forces partial CPU
+offload → <10 tok/s. Recommended env for context-scaling / a 32B attempt (not needed for the
+models above, which already fit): `OLLAMA_FLASH_ATTENTION=1 OLLAMA_KV_CACHE_TYPE=q8_0`
+(~50% KV-cache VRAM cut, ollama PR #7983). ollama/llama.cpp preferred over exllamav2/vLLM-AWQ
+on WSL2/16GB (only llama.cpp offloads to CPU RAM).
+
 ## 7. MAB Accurate-Retrieval — the second MAB competency (`scripts/bench_mab_ar.py`)
 MemoryAgentBench's other core competency: 22 long contexts (197K–534K tokens), four
 sub-benchmarks, ~2,000 questions. **Protocol-faithful per sub-benchmark**: RULER-QA

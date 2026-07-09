@@ -12,6 +12,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 
+from . import config
 from .core import Tenet
 
 mcp = FastMCP("tenet")
@@ -24,7 +25,10 @@ def learn(message: str, pinned: bool = False) -> str:
     """Ingest a raw message/note: automatically distill it into atomic facts, then
     store each with supersession (a changed fact retires the old value, history kept).
     This is the main write path — prefer it over `remember` for conversational input."""
-    ids = _tenet.ingest(message, pinned=pinned)
+    try:
+        ids = _tenet.ingest(message, pinned=pinned)
+    except config.ProviderError as e:
+        return f"ERROR: memory write failed — {e.reason}"
     return f"learned {len(ids)} fact(s)" if ids else "no durable fact found"
 
 
@@ -53,6 +57,22 @@ def recall(query: str, k: int = 5, char_budget: int | None = None) -> str:
         if m.confidence is not None:
             line += f" (p_valid={m.confidence:.2f})"
         lines.append(line)
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def navigate(query: str, budget: int = 4) -> str:
+    """Adaptive multi-hop recall: deepens associative hops only while new evidence
+    clears a relevance-gain gate; LLM-free (embeddings + cosine only, no chat call).
+    Use over plain `recall` for multi-hop / bridging questions, where the answer
+    is connected to the query only through an intermediate memory a flat top-k
+    search would miss. `budget` caps hop depth (max_hops); stops earlier on its
+    own once a deeper hop stops surfacing new relevant evidence."""
+    mems, trace = _core.navigate(query, max_hops=budget)
+    if not mems:
+        return "(no relevant memories)"
+    lines = [f"[{m.score:.2f}{'📌' if m.pinned else ''}] {m.text}" for m in mems]
+    lines.append(f"(navigated {trace[-1]['hop']} hop(s))")
     return "\n".join(lines)
 
 

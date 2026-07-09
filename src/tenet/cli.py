@@ -53,6 +53,11 @@ def _open(db: str | None):
 
 
 def _friendly(e: Exception) -> str:
+    from . import config
+    if isinstance(e, config.ProviderError):
+        return (f"memory write failed: {e.reason}\n"
+                f"tip: recall/stats/doubts work offline; learn/chat need a working "
+                f"{e.provider} API key (see README — 'which features need a key').")
     msg = str(e)
     if "Missing/placeholder secret" in msg:
         return f"{msg}\ntip: set EMBED_PROVIDER=local to run keyless (no API key needed)."
@@ -111,6 +116,33 @@ def cmd_recall(args) -> int:
     else:
         for h in hits:
             print(f"[{h.score:.2f}] {h.text}  (key={h.key or '-'}, {_status_of(h)})")
+    return 0
+
+
+def cmd_navigate(args) -> int:
+    """Adaptive multi-hop recall — same output table as `recall`, plus a trace line."""
+    m = _open(args.db)
+    mems, trace = m.navigate(args.query, k=args.k, max_hops=args.max_hops, tau_gain=args.tau_gain)
+    m.close()
+    if not mems:
+        _dim("(no matching memories)")
+        return 0
+    if _RICH:
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("text", overflow="fold")
+        table.add_column("key", style="dim")
+        table.add_column("valid_at", style="dim")
+        table.add_column("status")
+        for h in mems:
+            table.add_row(Text(h.text), Text(h.key or "-"),
+                          datetime.fromtimestamp(h.valid_at).strftime("%Y-%m-%d %H:%M"),
+                          _status_of(h))
+        _console.print(table)
+    else:
+        for h in mems:
+            print(f"[{h.score:.2f}] {h.text}  (key={h.key or '-'}, {_status_of(h)})")
+    hops = trace[-1]["hop"]
+    _dim(f"navigated {hops} hop(s) — {trace}")
     return 0
 
 
@@ -246,6 +278,14 @@ def _build_parser() -> argparse.ArgumentParser:
     s.add_argument("-k", type=int, default=5, help="max results (default: 5)")
     s.add_argument("--as-of", default=None, help="ISO date/time — time-travel recall")
     _add_db(s); s.set_defaults(func=cmd_recall)
+
+    s = sub.add_parser("navigate", help="adaptive multi-hop recall (LLM-free, stops when new evidence saturates)")
+    s.add_argument("query")
+    s.add_argument("-k", type=int, default=10, help="base top-k width per hop (default: 10)")
+    s.add_argument("--max-hops", type=int, default=4, help="hard depth budget (default: 4)")
+    s.add_argument("--tau-gain", type=float, default=0.15,
+                   help="relevance-gain floor a hop's best new item must clear (default: 0.15)")
+    _add_db(s); s.set_defaults(func=cmd_navigate)
 
     s = sub.add_parser("stats", help="store counts (current/superseded/archived)")
     _add_db(s); s.set_defaults(func=cmd_stats)

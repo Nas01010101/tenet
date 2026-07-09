@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import numpy as np  # noqa: E402
 from tenet import config  # noqa: E402
 from tenet import Tenet  # noqa: E402
+from tenet.navigate import navigate  # noqa: E402
 
 CACHE = Path(__file__).resolve().parent.parent / "data" / "cache" / "factcon"
 
@@ -268,6 +269,13 @@ def main():
     ap.add_argument("--dump", default="", help="misses JSONL")
     ap.add_argument("--keys", choices=["llm", "heuristic"], default="llm",
                     help="supersession keys: distiller (llm) or deterministic zero-LLM (heuristic)")
+    ap.add_argument("--nav", action="store_true",
+                    help="add a 'tenet_nav' arm: navigate() saturation-gated adaptive-depth "
+                         "recall vs the fixed-hops 'tenet' baseline. Same reader, same prompts — "
+                         "the ONLY variable is retrieval pool construction (the A/B).")
+    ap.add_argument("--nav-max-hops", type=int, default=4, help="navigate() hard depth budget")
+    ap.add_argument("--nav-tau", type=float, default=0.15,
+                    help="navigate() marginal-gain floor (tau_gain) to adopt a deeper hop")
     args = ap.parse_args()
     global KEY_MODE
     KEY_MODE = args.keys
@@ -300,6 +308,9 @@ def main():
 
         qs = list(zip(ex["questions"], ex["answers"]))[: args.qpc]
         stats = {"rag": [0, 0], "tenet": [0, 0]}                # [correct, scored]
+        if args.nav:
+            stats["tenet_nav"] = [0, 0]
+        nav_hops_sum = 0                                        # avg adopted depth (nav arm)
         errors = 0
         for qi, (q, gold) in enumerate(qs):
             qv = np.asarray(embedder([q])[0])
@@ -315,6 +326,17 @@ def main():
                 tenet_pool = "\n".join(f"{h.source}. {h.text}" for h in hits)
                 tp = (answer_extract(tenet_pool, q) if args.tenet_read != "official"
                       else answer(tenet_pool, q))
+            # --- tenet_nav arm: navigate() adaptive-depth pool, SAME reader as tenet ---
+            # Single-variable A/B vs the fixed-hops 'tenet' arm above: only retrieval
+            # pool construction differs; reader prompt + model are identical.
+            np_ans, nav_pool, nav_depth = "", "", 0
+            if args.nav:
+                nav_mems, nav_trace = navigate(m.core, q, k=args.k,
+                                               max_hops=args.nav_max_hops, tau_gain=args.nav_tau)
+                nav_pool = "\n".join(f"{h.source}. {h.text}" for h in nav_mems)
+                nav_depth = sum(1 for t in nav_trace if t.get("adopted"))
+                np_ans = (answer_extract(nav_pool, q) if args.tenet_read != "official"
+                          else answer(nav_pool, q))
             rp = answer(rag_pool, q)
             if not rp.strip():
                 errors += 1                                     # API failure: excluded
@@ -322,42 +344,70 @@ def main():
             if not tp.strip() and args.tenet_read != "decompose":
                 errors += 1
                 continue
+            if args.nav and not np_ans.strip():
+                errors += 1                                     # nav reader API failure: excluded
+                continue
             r_ok = subem_max(rp, gold)
             # decompose-mode empty = a pipeline abstention: scored WRONG, not excluded
             t_ok = subem_max(tp, gold) if tp.strip() else False
             stats["rag"][0] += r_ok; stats["rag"][1] += 1
             stats["tenet"][0] += t_ok; stats["tenet"][1] += 1
-            if dump_f and not (r_ok and t_ok):
-                dump_f.write(json.dumps({"cell": cell, "q": q, "gold": gold,
-                                         "rag": rp, "tenet": tp,
-                                         "rag_ok": bool(r_ok), "tenet_ok": bool(t_ok),
-                                         "tenet_pool": tenet_pool}) + "\n")
+            n_ok = False
+            if args.nav:
+                n_ok = subem_max(np_ans, gold)
+                stats["tenet_nav"][0] += n_ok; stats["tenet_nav"][1] += 1
+                nav_hops_sum += nav_depth
+            if dump_f and not (r_ok and t_ok and (n_ok or not args.nav)):
+                rec = {"cell": cell, "q": q, "gold": gold,
+                       "rag": rp, "tenet": tp,
+                       "rag_ok": bool(r_ok), "tenet_ok": bool(t_ok),
+                       "tenet_pool": tenet_pool}
+                if args.nav:
+                    rec |= {"tenet_nav": np_ans, "tenet_nav_ok": bool(n_ok),
+                            "nav_depth": nav_depth, "nav_pool": nav_pool}
+                dump_f.write(json.dumps(rec) + "\n")
                 dump_f.flush()
             if (qi + 1) % 20 == 0:
+                nav_s = (f" nav={stats['tenet_nav'][0]}/{stats['tenet_nav'][1]}"
+                         if args.nav else "")
                 print(f"  [{qi+1}/{len(qs)}] rag={stats['rag'][0]}/{stats['rag'][1]} "
-                      f"tenet={stats['tenet'][0]}/{stats['tenet'][1]}", flush=True)
+                      f"tenet={stats['tenet'][0]}/{stats['tenet'][1]}{nav_s}", flush=True)
         m.close()
         results[cell] = {a: (c, n) for a, (c, n) in stats.items()} | {"errors": errors}
+        if args.nav and stats["tenet_nav"][1]:
+            results[cell]["nav_avg_depth"] = nav_hops_sum / stats["tenet_nav"][1]
 
     # ---- report ----
+    arms = ["rag", "tenet"] + (["tenet_nav"] if args.nav else [])
     print(f"\n=== MAB FactConsolidation (SubEM, k={args.k}, qpc={args.qpc}) ===")
-    print(f"{'cell':>8} | {'RAG acc [95% CI]':>22} | {'TENET acc [95% CI]':>22} | err")
+    hdr = " | ".join(f"{a.upper()+' acc [95% CI]':>24}" for a in arms)
+    print(f"{'cell':>8} | {hdr} | err")
     for cell, r in sorted(results.items()):
         row = []
-        for arm in ("rag", "tenet"):
+        for arm in arms:
             c, n = r[arm]
             p = c / n if n else 0.0
             lo, hi = wilson_ci(p, n)
-            row.append(f"{100*p:5.1f}% [{100*lo:4.1f},{100*hi:5.1f}] n={n}")
-        print(f"{cell:>8} | {row[0]:>22} | {row[1]:>22} | {r['errors']}")
-    for arm in ("rag", "tenet"):
-        cs = [(r[arm][0], r[arm][1]) for r in results.values()]
+            row.append(f"{100*p:5.1f}% [{100*lo:4.1f},{100*hi:5.1f}] n={n:>3}")
+        depth = f" navdepth={r['nav_avg_depth']:.2f}" if "nav_avg_depth" in r else ""
+        print(f"{cell:>8} | {' | '.join(f'{x:>24}' for x in row)} | {r['errors']}{depth}")
+    for arm in arms:
         for tag, pred in (("SH", lambda c: c.startswith("sh")), ("MH", lambda c: c.startswith("mh"))):
             cc = sum(r[arm][0] for cell, r in results.items() if pred(cell))
             nn = sum(r[arm][1] for cell, r in results.items() if pred(cell))
             if nn:
                 lo, hi = wilson_ci(cc / nn, nn)
-                print(f"{arm:>6} {tag} pooled: {100*cc/nn:.1f}% [{100*lo:.1f},{100*hi:.1f}] (n={nn})")
+                print(f"{arm:>10} {tag} pooled: {100*cc/nn:.1f}% [{100*lo:.1f},{100*hi:.1f}] (n={nn})")
+    # nav A/B delta (MH pooled): tenet_nav - tenet
+    if args.nav:
+        for tag, pred in (("SH", lambda c: c.startswith("sh")), ("MH", lambda c: c.startswith("mh"))):
+            bc = sum(r["tenet"][0] for cell, r in results.items() if pred(cell))
+            bn = sum(r["tenet"][1] for cell, r in results.items() if pred(cell))
+            nc = sum(r["tenet_nav"][0] for cell, r in results.items() if pred(cell))
+            nn = sum(r["tenet_nav"][1] for cell, r in results.items() if pred(cell))
+            if bn and nn:
+                print(f"  navigate() {tag} delta: {100*nc/nn - 100*bc/bn:+.1f} pts "
+                      f"(tenet {100*bc/bn:.1f}% -> nav {100*nc/nn:.1f}%, n={nn})")
     print(f"wall={time.time()-t_start:.0f}s")
 
 

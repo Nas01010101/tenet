@@ -40,6 +40,27 @@ def get(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip() or default
 
 
+class ProviderError(RuntimeError):
+    """A chat-provider call failed in a way retrying can't fix (bad key, no quota,
+    unpaid balance, ...). Distinct from transient errors (429/rate limits), which
+    `chat()` retries internally — this is raised only once retry can't help, so
+    callers can tell "provider is down/misconfigured" from "provider said nothing"."""
+
+    def __init__(self, provider: str, model: str, reason: str):
+        self.provider = provider
+        self.model = model
+        self.reason = reason
+        super().__init__(f"{provider}/{model}: {reason}")
+
+
+# Substrings that mark a PERMANENT provider failure — retrying more won't help,
+# so chat() raises immediately instead of burning 5 attempts to end up at "".
+_PERMANENT_MARKERS = (
+    "401", "403", "402", "quota", "insufficient", "payment",
+    "invalid api key", "allocationquota",
+)
+
+
 # Convenience accessors
 QWEN_BASE_URL = get("QWEN_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
 QWEN_MODEL = get("QWEN_MODEL", "qwen3.7-plus")
@@ -124,6 +145,7 @@ def chat(messages, *, qwen_default: str, max_tokens: int = 512, temperature: flo
             kw["extra_body"] = {"provider": {"order": pin.split(","),
                                              "allow_fallbacks": False}}
     client = chat_client()
+    last_reason = "exhausted retries with no successful response"
     for attempt in range(5):
         try:
             r = client.chat.completions.create(**kw)
@@ -132,15 +154,23 @@ def chat(messages, *, qwen_default: str, max_tokens: int = 512, temperature: flo
             kw.pop("response_format", None)  # empty -> drop json constraint, retry
         except Exception as e:  # noqa: BLE001
             msg = str(e)
+            msg_lower = msg.lower()
+            if any(marker in msg_lower for marker in _PERMANENT_MARKERS):
+                # Permanent failure (bad key / no quota / unpaid) — retrying is
+                # pointless and previously masked data loss (chat() returned "",
+                # distill() turned that into "{}" -> ingest() silently learned
+                # nothing). Fail loud immediately instead.
+                raise ProviderError(LLM_PROVIDER, model, msg) from e
+            last_reason = msg
             if "response_format" in msg or "json_object" in msg:
                 kw.pop("response_format", None)  # provider rejects json mode
-            elif "429" in msg or "rate" in msg.lower() or "temporarily" in msg.lower():
+            elif "429" in msg or "rate" in msg_lower or "temporarily" in msg_lower:
                 _t.sleep(2 * (attempt + 1))      # transient rate limit — back off
             elif attempt >= 3:
-                return ""
+                raise ProviderError(LLM_PROVIDER, model, last_reason) from e
             else:
                 _t.sleep(1)
-    return ""
+    raise ProviderError(LLM_PROVIDER, model, last_reason)
 
 
 def _agy_chat(messages) -> str:

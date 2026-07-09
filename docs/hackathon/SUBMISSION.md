@@ -115,6 +115,25 @@ with a 2-page paper + full preprint in `paper/`.
   — a past incident scored a run at 5% that way, see `config.py`); Qwen chat calls
   back off and retry on rate limits; `mcp_server.py` imports cleanly and serves against
   an empty/nonexistent DB (`python -c "import tenet.mcp_server"`, item 8 sanity check).
+- **Fail-loud on permanent provider errors, not silent zero-fact writes**:
+  `config.chat` used to retry every exception then return `""`, so a bad key/quota
+  outage looked identical to "the model said nothing" and `ingest()` silently learned
+  0 facts. Now permanent errors (401/402/403, quota) raise `ProviderError` immediately;
+  transient ones (429, upstream hiccups) still retry; every write surface
+  (agent/CLI/MCP/API) surfaces the failure instead of pretending success — regression-
+  tested end to end in `scripts/test_errors.py`.
+- **Adaptive multi-hop recall (`navigate()`), staying LLM-free.** The Qwen paper *From
+  Passive Retrieval to Active Memory Navigation* (NapMem, arXiv:2607.05794) proposes
+  navigating memory as a structured action space, stopped by a GRPO-trained 9B policy
+  — training + serving Tenet can't ship, and it puts an LLM in the read path. `navigate()`
+  is the deterministic instantiation: it reuses `recall`'s existing belief-anchored
+  expansion + associative hops, and replaces the learned stop policy with an
+  embedding-based relevance-gain gate — deepen only while a hop surfaces genuinely new,
+  relevant evidence, stop the moment it saturates. Wired into `MemoryCore.navigate` /
+  `Tenet.navigate`, `tenet navigate`, and the MCP `navigate` tool tonight
+  (`src/tenet/navigate.py`, `scripts/test_navigate.py`). Honest: mechanism-validated on
+  a controlled bridge/saturation fixture, not yet benchmarked end-to-end — no numbers
+  claimed here.
 
 ### Impact (25%)
 - **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (ICLR 2026)
@@ -131,8 +150,16 @@ with a 2-page paper + full preprint in `paper/`.
   port's ~12% to **59.7%** @48K budget, reader-gated rather than retrieval-gated —
   `paper/tenet.md` §4.7.
 - **Ships as a real product**: `pip install tenet-memory`, a polished CLI
-  (`tenet chat/remember/recall/stats/doubts/sweep`), an MCP server any client can plug
-  into today, an HTTP API + belief-ledger web demo, and a 2-page paper + full preprint.
+  (`tenet chat/remember/recall/navigate/stats/doubts/sweep`), an MCP server any client
+  can plug into today, an HTTP API + belief-ledger web demo, and a 2-page paper + full
+  preprint.
+- **Drops into the LangGraph ecosystem, not just its own CLI**: `TenetStore`
+  (`src/tenet/integrations/langgraph.py`) implements LangGraph's real `BaseStore`
+  `batch`/`abatch` Op contract, so `StateGraph.compile(store=TenetStore(...))` gives any
+  LangGraph agent bi-temporal supersession — a re-`put()` of the same `(namespace, key)`
+  retires the old value to history instead of overwriting it — for free. Optional extra
+  `pip install tenet-memory[langgraph]`, tested end to end in
+  `scripts/test_langgraph_store.py`.
 
 ### Presentation (15%)
 - **One-page architecture doc** with a Mermaid component diagram, the world-model
@@ -146,6 +173,14 @@ with a 2-page paper + full preprint in `paper/`.
 - Every benchmark number reproduces from one documented CLI command
   (`tenet bench run <name>`, `docs/BENCHMARK.md`); honest weak spots (multi-session
   synthesis, multi-hop chaining) are reported, not hidden.
+- **A 60-second, zero-API-key first run**: `pip install tenet-memory[local]` then
+  `python examples/00_zero_key_demo.py` walks the whole LLM-free read path
+  (supersession, time-travel, learned-dynamics doubts) with no signup and no network
+  call — the lowest-friction way a judge can see the belief-state mechanism work.
+- **`CHANGELOG.md`** (Keep a Changelog format) tracks every notable change since
+  0.1.0; **`docs/BLOG.md`** (Blog Post Prize candidate) is the honest origin story —
+  auditing LoCoMo's ground truth ourselves before trusting a leaderboard number, and
+  why that pushed Tenet toward deterministic, reproducible evaluation.
 
 ## Links (fill in)
 - **Code repository:** https://github.com/Nas01010101/tenet (public, MIT license visible in About)

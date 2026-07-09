@@ -211,7 +211,13 @@
 
   async function api(path, opts) {
     const r = await fetch(path, Object.assign({ credentials: "same-origin" }, opts));
-    if (!r.ok) throw new Error(`${path} -> ${r.status}`);
+    if (!r.ok) {
+      // FastAPI error bodies are {"detail": "..."} — surface that text (e.g. a
+      // ProviderError reason) instead of just the status code, when present.
+      let detail = "";
+      try { detail = (await r.json()).detail || ""; } catch (_) { /* not JSON */ }
+      throw new Error(detail || `${path} -> ${r.status}`);
+    }
     return r.json();
   }
 
@@ -273,7 +279,7 @@
       out = await api("/chat", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }) });
     } catch (e) {
-      thinking.querySelector(".body").textContent = "(error reaching tenet — is the API running?)";
+      thinking.querySelector(".body").textContent = `(${e.message || "error reaching tenet — is the API running?"})`;
       return;
     }
     thinking.querySelector(".body").textContent = out.reply || "(no reply)";
