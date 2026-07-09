@@ -128,6 +128,30 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def cmd_doubts(args) -> int:
+    """Facts the learned dynamics model doubts — worth re-verifying with the user."""
+    m = _open(args.db)
+    doubts = m.core.uncertain_facts(threshold=args.threshold)
+    m.close()
+    if not doubts:
+        _out(f"no doubted facts (all current facts above P(valid) ≥ {args.threshold})")
+        return 0
+    if _RICH:
+        table = Table(show_header=True, header_style="bold",
+                      title="doubted beliefs (learned fact dynamics)")
+        for col in ("key", "text", "P(valid)", "age (d)", "typical lifetime (d)"):
+            table.add_column(col)
+        for d in doubts:
+            life = d["expected_lifetime_days"]
+            table.add_row(Text(d["key"]), Text(d["text"]), f"{d['p_valid']:.2f}",
+                          f"{d['age_days']:.0f}", "—" if life is None else f"{life:.0f}")
+        _console.print(table)
+    else:
+        for d in doubts:
+            print(f"P={d['p_valid']:.2f}  {d['key']}: {d['text']}  (age {d['age_days']:.0f}d)")
+    return 0
+
+
 def cmd_sweep(args) -> int:
     m = _open(args.db)
     n = m.forget_sweep()
@@ -225,6 +249,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("stats", help="store counts (current/superseded/archived)")
     _add_db(s); s.set_defaults(func=cmd_stats)
+
+    s = sub.add_parser("doubts", help="facts the learned dynamics model doubts (world-model layer)")
+    s.add_argument("--threshold", type=float, default=0.5, help="flag facts with P(valid) below this")
+    _add_db(s); s.set_defaults(func=cmd_doubts)
 
     s = sub.add_parser("sweep", help="run the forgetting sweep")
     _add_db(s); s.set_defaults(func=cmd_sweep)

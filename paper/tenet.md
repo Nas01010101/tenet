@@ -167,7 +167,22 @@ archives current, unpinned memories with *d* below a threshold. Pinned identity 
 decay. Retrieval is a **dual pool** — beliefs for consistency, evidence for verbatim detail
 — guaranteeing each a share of the budget.
 
-**3.6 Belief-anchored evidence expansion.** Compressing a session into a few keyed beliefs
+**3.6 Fact dynamics — learning how facts change.** The ledger doubles as training
+data for drift: superseded facts are observed lifetimes, current facts censored ones.
+Per key class, a conjugate Gamma–exponential model gives closed-form survival
+P(still valid | Δt) = (β₀+T / (β₀+T+Δt))^(α₀+n) — "residence" learns a slow hazard,
+"mood" a fast one, per user, no LLM. Co-supersession statistics add *ripple*: when a
+correlated key changes, neighbors' survival is discounted, so one observation updates
+beliefs about unobserved attributes. Both surface as a per-fact `confidence` and an
+`uncertain_facts()` re-verification list. Deliberately annotation-only: rank-demoting
+doubted facts measurably re-created the churn failure (§4.2) before we reverted it.
+A trained alternative — a 276k-param GRU temporal point process (Weibull hazard +
+next-key + contrastive next-value heads) — beats the closed form decisively on
+planted non-memoryless structure (NLL 2.76→1.99, CI excludes 0; next-value 0.997
+recall@5 vs 0.05 chance; 5 seeds) but is honestly mixed on sparse real chains;
+it ships as a 1MB numpy artifact (106µs/query), opt-in, defaults unchanged.
+
+**3.7 Belief-anchored evidence expansion.** Compressing a session into a few keyed beliefs
 is what wins churn and efficiency, but it can drop the fine detail a multi-hop question
 needs, even when the right session *is* retrieved (recall is 95–100%, §4.1). We recover it
 without reverting to flat retrieval: the top-*k* dual-pool result names both the belief state

@@ -72,6 +72,81 @@ with a 2-page paper + full preprint in `paper/`.
 `Qwen Cloud` (qwen3.7-plus, qwen3.6-flash, text-embedding-v4) · `Model Context Protocol` ·
 `FastAPI` · `sqlite` · `NumPy` · `Alibaba Cloud OSS` · `Python`
 
+## Judging criteria mapping
+
+### Technical Depth (30%) — sophisticated Qwen Cloud API + MCP integration
+- **Three distinct Qwen Cloud APIs, each for the task it's best at**: `text-embedding-v4`
+  (retrieval, `config.embed_texts`), `qwen3.6-flash` (write-time distillation into atomic
+  `subject::attribute` facts, `distill.py`), `qwen3.7-plus` (the assistant's reader,
+  `agent.py`) — all through one fail-loud provider layer (`config.py`) that swaps
+  Qwen/OpenRouter/Ollama by env var with zero code change.
+- **MCP server exposes the full bi-temporal + world-model surface**, not just
+  store/recall: `learn`, `remember`, `recall` (annotated with learned `p_valid`),
+  `doubts` (world-model uncertainty table), `time_travel` (bi-temporal read — recall as
+  of an arbitrary past instant), `forget_stale`, `memory_stats` — `src/tenet/mcp_server.py`.
+- **A learned world model, not a heuristic**: `dynamics.py` fits a closed-form
+  Gamma-Lomax survival model *per key class* from the ledger's own supersession history
+  (no hardcoded half-lives), plus a ripple term for correlated fact change; an opt-in
+  neural GRU temporal-point-process (`dynamics_neural.py`, numpy-only inference, no
+  torch dependency at runtime) swaps in via `TENET_DYNAMICS=neural`.
+- **One BLAS matmul read path, zero LLM calls at query time** (`memory.py:recall`,
+  see `docs/HARNESS.md` §3 for the 28–33× speedup over a per-row loop).
+
+### Innovation (30%) — non-trivial logic, modularity, error handling
+- **Memory as a self-consistent belief state, not a document log**: bi-temporal
+  supersession (`memory.py:store`), belief–evidence consistency (a raw slice echoing a
+  *superseded* belief is retired from recall, `_STALE_ECHO`), and surprise-gated writes
+  (predictive-coding: redundant observations aren't stored) — see `docs/ARCHITECTURE.md`.
+- **Annotation-only confidence, a real invariant, enforced and regression-tested.**
+  Confidence never reorders or filters recall — only how a fact is *worded*. The story:
+  rank-demoting doubted facts broke the knowledge-churn benchmark **100% → 33%**;
+  restoring annotation-only brought it back to **100%**. Enforced in
+  `memory.py`/`agent.py`/`mcp_server.py` and asserted by
+  `scripts/test_agent_uncertainty.py::test_ranking_invariant` (monkeypatches `p_valid`
+  to two wildly different regimes, asserts identical `recall()` order).
+- **Anticipatory verification, not forced interrogation**: at session start the agent
+  checks `uncertain_facts()` and injects one soft system-prompt line naming the
+  top-3 doubted beliefs to *proactively* re-confirm "when contextually relevant" —
+  never a scripted per-turn challenge. Empty store → zero-overhead no-op, verified by
+  `test_agent_uncertainty.py::test_agent_construction_guard`.
+- **Modularity**: one `Tenet()` core shared verbatim by the CLI, the MCP server, the
+  HTTP API, and the assistant — every surface is a thin adapter, no duplicated logic.
+- **Error handling**: embedding failures raise (never silently degrade to a zero vector
+  — a past incident scored a run at 5% that way, see `config.py`); Qwen chat calls
+  back off and retry on rate limits; `mcp_server.py` imports cleanly and serves against
+  an empty/nonexistent DB (`python -c "import tenet.mcp_server"`, item 8 sanity check).
+
+### Impact (25%)
+- **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (ICLR 2026)
+  FactConsolidation single-hop **86.5% pooled**, above published mini-tier SOTA (78.0),
+  on a *weaker* local-7B backbone with zero-LLM ingestion — `docs/BENCHMARK.md` §6.
+- **Same-harness reproduction of four published methods** (CAR, Mem0-style,
+  HippoRAG-v2-style, MemAgent-style) — Tenet leads every arm on both single- and
+  multi-hop axes, closest rival CAR at 87.5/33.0 vs Tenet 90.0/36.0 — `docs/BENCHMARK.md` §6.1.
+- **The regime RAG structurally can't scale to**: controlled knowledge-churn benchmark
+  (a fact updated 2→12 times) — naive-RAG collapses **100% → 50%** past 8 updates,
+  **Tenet holds 100%** throughout (`docs/BENCHMARK.md` §3, `scripts/bench_horizon.py`).
+- **LongMemEval-V2 case study** (web-agent trajectory memory, up to 115M-token
+  haystacks): three LLM-free retrieval changes lifted gold-evidence recall from a naive
+  port's ~12% to **59.7%** @48K budget, reader-gated rather than retrieval-gated —
+  `paper/tenet.md` §4.7.
+- **Ships as a real product**: `pip install tenet-memory`, a polished CLI
+  (`tenet chat/remember/recall/stats/doubts/sweep`), an MCP server any client can plug
+  into today, an HTTP API + belief-ledger web demo, and a 2-page paper + full preprint.
+
+### Presentation (15%)
+- **One-page architecture doc** with a Mermaid component diagram, the world-model
+  equations, and the annotation-only invariant story: `docs/ARCHITECTURE.md`.
+- **Belief-ledger demo UI** (`src/tenet/static/index.html`) — chat on the left, the
+  live belief state on the right with struck-through superseded history, a time-travel
+  scrubber, and a faint dotted-underline "doubt" marker (hover for `p_valid`) on beliefs
+  the world model thinks are likely stale.
+- **`tenet doubts` CLI** renders the same world-model uncertainty table as a Rich
+  table (or plain-text fallback) for a live terminal demo.
+- Every benchmark number reproduces from one documented CLI command
+  (`tenet bench run <name>`, `docs/BENCHMARK.md`); honest weak spots (multi-session
+  synthesis, multi-hop chaining) are reported, not hidden.
+
 ## Links (fill in)
 - **Code repository:** https://github.com/Nas01010101/tenet (public, MIT license visible in About)
 - **Demo video (≤3 min):** [YOUTUBE URL]

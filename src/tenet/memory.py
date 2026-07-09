@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config
+from .dynamics import Dynamics
 
 _DEFAULT_DB = Path(__file__).resolve().parent.parent.parent / "data" / "tenet.db"
 
@@ -53,6 +54,7 @@ class Memory:
     kind: str = "fact"
     source: str | None = None
     key: str | None = None  # semantic "subject::attribute" key (fact rows only)
+    confidence: float | None = None  # learned P(still valid) at query time (dynamics)
 
     @property
     def is_current(self) -> bool:
@@ -94,6 +96,8 @@ class MemoryCore:
         self.db.execute("CREATE INDEX IF NOT EXISTS idx_memories_skey ON memories(skey) ")
         self.db.commit()
         self._client = None
+        self._dyn: Dynamics | None = None   # learned fact dynamics (lazily fitted)
+        self._dyn_dirty = True
 
     # ---- embedding -------------------------------------------------------
     def _embed(self, text: str) -> np.ndarray:
@@ -187,6 +191,7 @@ class MemoryCore:
                 (text, kind, source, key, vec.tobytes(), float(salience), va, t, t, int(pinned)),
             )
             self.db.commit()
+            self._dyn_dirty = True  # ledger changed -> refit dynamics lazily
             return cur.lastrowid
 
     # ---- recall ----------------------------------------------------------
@@ -234,6 +239,22 @@ class MemoryCore:
                 b"".join(row["embedding"] for row in rows), dtype=np.float32
             ).reshape(len(rows), -1)
             rels = mat @ qv                               # cosine (both unit)
+            # World-model layer: annotate each keyed fact with the LEARNED probability
+            # it is still the current truth (dynamics.py — per-key-class survival
+            # fitted on this store's own supersession history). Deliberately NOT a
+            # rank discount: a doubted fact is still the best known answer, and
+            # demoting it re-creates the churn failure supersession prevents
+            # (measured). Doubt is surfaced (Memory.confidence, uncertain_facts())
+            # for the agent to caveat or re-verify with the user.
+            dyn = self._dynamics() if as_of is None else None
+            now = self._now()
+            conf: dict[int, float] = {}
+            if dyn is not None:
+                for row in rows:
+                    p = self._p_valid(row, dyn, now)
+                    if p is not None:
+                        conf[row["id"]] = p
+
             scored = [
                 (float(rel) * self._decay(row), float(rel), row)
                 for rel, row in zip(rels, rows)
@@ -274,7 +295,7 @@ class MemoryCore:
                 if as_of is None:
                     self._touch(row["id"])
                 used += len(row["text"])
-                out.append(self._to_memory(row, rank))
+                out.append(self._to_memory(row, rank, confidence=conf.get(row["id"])))
 
             # Belief-anchored evidence expansion: add query-relevant raw turns from the
             # sessions the top-k already surfaced. Ranked by pure relevance (detail, not
@@ -333,6 +354,58 @@ class MemoryCore:
                     fresh_rows = [row for row in fresh_rows if row["id"] not in have]
             return out
 
+    # ---- fact dynamics (the world-model layer) -----------------------------
+    def _dynamics(self):
+        """Learned lifetime model, refit lazily from the ledger when it changed.
+
+        Default is the closed-form Gamma-exponential Dynamics (dynamics.py). Set env
+        TENET_DYNAMICS=neural (+ TENET_NEURAL_NPZ=<path>) to swap in the trained GRU
+        world model (dynamics_neural.py, numpy-only). The neural path needs per-event
+        value embeddings, so it binds the ledger's stored embeddings — use it with the
+        bge-small local embedder it was trained on (EMBED_PROVIDER=local, 384d)."""
+        if self._dyn is not None and not self._dyn_dirty:
+            return self._dyn
+        rows = self.db.execute(
+            "SELECT skey, valid_at, invalid_at, embedding FROM memories "
+            "WHERE kind='fact' AND skey IS NOT NULL AND archived=0"
+        ).fetchall()
+        import os
+        nd = None
+        if os.environ.get("TENET_DYNAMICS", "").lower() == "neural":
+            from .dynamics_neural import build_from_ledger  # numpy-only world model
+            nd = build_from_ledger(rows, now=self._now())   # None on any failure
+        self._dyn = nd if nd is not None else Dynamics.fit(rows, now=self._now())
+        self._dyn_dirty = False
+        return self._dyn
+
+    def _p_valid(self, row, dyn: Dynamics, now: float) -> float | None:
+        """Learned P(this fact is still the current truth); None for raw rows."""
+        if row["kind"] != "fact" or row["skey"] is None:
+            return None
+        return dyn.p_valid(row["skey"], now - row["valid_at"], now=now)
+
+    def uncertain_facts(self, threshold: float = 0.5) -> list[dict]:
+        """Current keyed facts the dynamics model doubts (P(valid) < threshold) —
+        the agent's 'worth re-verifying with the user' list. Sorted most-doubted
+        first. Includes ripple effects (a correlated key changed recently)."""
+        with self._lock:
+            dyn = self._dynamics()
+            now = self._now()
+            out = []
+            for r in self.db.execute(
+                "SELECT * FROM memories WHERE kind='fact' AND skey IS NOT NULL "
+                "AND archived=0 AND expired_at IS NULL"
+            ).fetchall():
+                p = dyn.p_valid(r["skey"], now - r["valid_at"], now=now)
+                if p < threshold:
+                    out.append({
+                        "key": r["skey"], "text": r["text"], "p_valid": round(p, 3),
+                        "age_days": round((now - r["valid_at"]) / 86400.0, 1),
+                        "expected_lifetime_days": dyn.expected_lifetime_days(r["skey"]),
+                    })
+            out.sort(key=lambda d: d["p_valid"])
+            return out
+
     # ---- belief state (demo UI) -------------------------------------------
     def list_beliefs(self, as_of: float | None = None) -> list[dict]:
         """Distilled facts as plain dicts, for a UI belief-state view (no LLM).
@@ -350,12 +423,18 @@ class MemoryCore:
                     "SELECT * FROM memories WHERE kind='fact' AND archived=0 "
                     "ORDER BY skey, valid_at"
                 ).fetchall()
-                return [
-                    {"id": r["id"], "key": r["skey"] or "(unkeyed)", "text": r["text"],
-                     "valid_at": r["valid_at"], "expired_at": r["expired_at"],
-                     "status": "superseded" if r["expired_at"] is not None else "current"}
-                    for r in rows
-                ]
+                # UI-only doubt marker: same learned p_valid recall() attaches,
+                # never filters/sorts here either — see _p_valid.
+                dyn, now = self._dynamics(), self._now()
+                out = []
+                for r in rows:
+                    cur = r["expired_at"] is None
+                    p = self._p_valid(r, dyn, now) if cur else None
+                    out.append({"id": r["id"], "key": r["skey"] or "(unkeyed)", "text": r["text"],
+                                "valid_at": r["valid_at"], "expired_at": r["expired_at"],
+                                "status": "current" if cur else "superseded",
+                                "p_valid": None if p is None else round(p, 3)})
+                return out
             rows = [r for r in self._rows_as_of(as_of) if r["kind"] == "fact"]
             rows.sort(key=lambda r: (r["skey"] or "(unkeyed)", r["valid_at"]))
             return [
@@ -436,7 +515,7 @@ class MemoryCore:
         )
         self.db.commit()
 
-    def _to_memory(self, row, score: float) -> Memory:
+    def _to_memory(self, row, score: float, confidence: float | None = None) -> Memory:
         return Memory(
             id=row["id"], text=row["text"], score=round(score, 4),
             created_at=row["created_at"], valid_at=row["valid_at"],
@@ -444,6 +523,7 @@ class MemoryCore:
             last_access=row["last_access"], uses=row["uses"],
             pinned=bool(row["pinned"]), salience=row["salience"],
             kind=row["kind"], source=row["source"], key=row["skey"],
+            confidence=None if confidence is None else round(confidence, 3),
         )
 
     def stats(self) -> dict:

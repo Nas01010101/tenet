@@ -67,6 +67,15 @@ def distill(text: str, *, model: str = _MODEL, client=None) -> list[Fact]:
         key = (f.get("key") or "").strip().lower() or None
         if not stmt or not key:
             continue
+        # Weak local models sometimes emit the statement as "user::residence=DENVER".
+        # Unwrap to readable prose — key=value text also weakens the stale-echo
+        # similarity between expired beliefs and the raw turns they came from.
+        if "=" in stmt and stmt.lower().replace(" ", "").startswith(key.replace(" ", "")):
+            value = stmt.split("=", 1)[1].strip()
+            attr = key.rsplit("::", 1)[-1].replace("_", " ")
+            subj = key.rsplit("::", 1)[0]
+            if value:
+                stmt = f"{'my' if subj == 'user' else subj} {attr} is {value}"
         try:
             sal = float(f.get("salience", 0.5))
         except (TypeError, ValueError):
