@@ -53,6 +53,11 @@ def _open(db: str | None):
 
 
 def _friendly(e: Exception) -> str:
+    from . import config
+    if isinstance(e, config.ProviderError):
+        return (f"memory write failed: {e.reason}\n"
+                f"tip: recall/stats/doubts work offline; learn/chat need a working "
+                f"{e.provider} API key (see README — 'which features need a key').")
     msg = str(e)
     if "Missing/placeholder secret" in msg:
         return f"{msg}\ntip: set EMBED_PROVIDER=local to run keyless (no API key needed)."

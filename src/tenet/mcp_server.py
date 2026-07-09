@@ -12,6 +12,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 
+from . import config
 from .core import Tenet
 
 mcp = FastMCP("tenet")
@@ -24,7 +25,10 @@ def learn(message: str, pinned: bool = False) -> str:
     """Ingest a raw message/note: automatically distill it into atomic facts, then
     store each with supersession (a changed fact retires the old value, history kept).
     This is the main write path — prefer it over `remember` for conversational input."""
-    ids = _tenet.ingest(message, pinned=pinned)
+    try:
+        ids = _tenet.ingest(message, pinned=pinned)
+    except config.ProviderError as e:
+        return f"ERROR: memory write failed — {e.reason}"
     return f"learned {len(ids)} fact(s)" if ids else "no durable fact found"
 
 

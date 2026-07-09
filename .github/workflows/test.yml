@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EMBED_PROVIDER: local        # bge-small — no API keys needed
-      LLM_PROVIDER: openrouter     # never touched: these tests make no chat calls
+      LLM_PROVIDER: openrouter     # never touched: these tests make no live chat calls
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,6 +20,27 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-bge-small-${{ runner.os }}
-      - run: pip install -q numpy sentence-transformers
+      - run: pip install -q numpy sentence-transformers mcp
       - name: capability tests (deterministic, no LLM)
         run: python scripts/test_memory.py
+      - name: fact-dynamics (world-model) tests (deterministic, no LLM)
+        run: python scripts/test_dynamics.py
+      - name: uncertainty-aware prompting + MCP surface tests (deterministic, no LLM)
+        run: python scripts/test_agent_uncertainty.py
+      - name: provider-error-handling tests (deterministic, stubbed chat client, no LLM)
+        run: python scripts/test_errors.py
+
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: pip install -e . in a clean env
+        run: pip install -e .
+      - name: import + entry-point smoke (catches packaging breaks — missing
+          package data, broken console_scripts, ...)
+        run: |
+          python -c "import tenet; from tenet.memory import MemoryCore"
+          tenet --help

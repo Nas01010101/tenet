@@ -143,14 +143,22 @@ def reset(response: Response, tenet_sid: str | None = Cookie(None)):
 def chat(req: ChatReq, sess: _Session = Depends(_resolve_session)):
     """The Tenet Assistant: recall relevant memory → answer with Qwen → learn from the
     message (with supersession). A persistent, self-managing memory agent over HTTP."""
-    out = sess.agent.respond(req.message)
+    try:
+        out = sess.agent.respond(req.message)
+    except config.ProviderError as e:
+        # Reply generation itself needs the LLM (recall doesn't) — if the provider
+        # is down, tell the caller plainly instead of a raw 500.
+        raise HTTPException(503, f"LLM provider unavailable: {e.reason}")
     return {**out, "facts_added": out["learned"]}
 
 
 @app.post("/ingest")
 def ingest(req: IngestReq, sess: _Session = Depends(_resolve_session)):
     """Distill a raw message into atomic facts and store them (with supersession)."""
-    ids = sess.tenet.ingest(req.message, pinned=req.pinned)
+    try:
+        ids = sess.tenet.ingest(req.message, pinned=req.pinned)
+    except config.ProviderError as e:
+        raise HTTPException(503, f"LLM provider unavailable: {e.reason}")
     return {"stored": len(ids), "ids": ids}
 
 

@@ -96,10 +96,22 @@ class MemoryAgent:
         )
         before = self.m.stats()["superseded"]
         # extract + store facts (with supersession); pure questions carry no facts
-        learned = [] if _is_pure_question(user_msg) else self.m.ingest(user_msg)
+        warning = None
+        learned: list[int] = []
+        if not _is_pure_question(user_msg):
+            try:
+                learned = self.m.ingest(user_msg)
+            except config.ProviderError as e:
+                # Answering still worked (recall is LLM-free) — don't pretend the
+                # write also succeeded. Surface it instead of silently losing the turn.
+                warning = f"memory write failed: {e.reason} — this turn was not memorized"
         superseded = self.m.stats()["superseded"] - before
-        return {"reply": reply, "learned": len(learned), "superseded": superseded,
-                "recalled": [x.text for x in mems]}
+        out = {"reply": reply, "learned": len(learned), "superseded": superseded,
+               "recalled": [x.text for x in mems]}
+        if warning:
+            out["warning"] = warning
+            out["reply"] = f"{reply}\n\n[{warning}]" if reply else f"[{warning}]"
+        return out
 
     def recall_history(self, topic: str, as_of: float | None = None):
         """Time-travel: what the user believed/said about `topic`, optionally as-of a time."""

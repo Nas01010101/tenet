@@ -24,17 +24,20 @@
 *A memory that stays true as the world changes.*
 
 ```bash
-pip install tenet-memory
+pip install tenet-memory   # not yet on PyPI — until it lands, install from source (below)
 ```
 ```python
 from tenet import Tenet
 
 mem = Tenet()
-mem.ingest("I live in Boston")
+mem.ingest("I live in Boston")              # needs an LLM key (distills the raw message)
 mem.ingest("I moved to Seattle")            # supersedes — Boston kept in history
 mem.recall("where do I live?")              # → [Seattle]  (current beliefs, no LLM call)
 mem.recall("where do I live?", as_of=t0)    # → [Boston]   (time-travel)
 ```
+`recall`/`stats`/`doubts` are LLM-free (embeddings + closed-form math only — `EMBED_PROVIDER=local`
+runs them with zero API key). `ingest`/the chat agent need a working `DASHSCOPE_API_KEY` (or
+`LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY`) since distillation is one LLM call per message.
 
 </div>
 
@@ -82,7 +85,7 @@ Read the 2-page paper: **[`paper/tenet.md`](paper/tenet.md)**.
 ## Quickstart
 
 ```bash
-pip install tenet-memory                    # library: from tenet import Tenet
+pip install tenet-memory                    # library: from tenet import Tenet (not yet on PyPI — see below)
 ```
 
 More in [`examples/`](examples/) — quickstart, assistant loop, MCP client, LangChain adapter.
@@ -90,11 +93,18 @@ More in [`examples/`](examples/) — quickstart, assistant loop, MCP client, Lan
 Running from source (full assistant + surfaces):
 ```bash
 cp .env.example .env && chmod 600 .env      # add DASHSCOPE_API_KEY (Qwen Cloud)
-pip install -e .
+pip install -e ".[all]"                     # base + api/mcp/oss/local/cli extras
 python scripts/smoke_test.py                # verify connectivity
 uvicorn tenet.api:app --host 0.0.0.0 --port 8000  # HTTP API incl. POST /chat
 python -m tenet.mcp_server                   # or the MCP server (learn/recall/forget/stats)
 ```
+`pip install -e .` alone only pulls the base library (`openai`, `numpy`) — the API server and
+MCP server need the `api`/`mcp` extras (bundled in `[all]` above), or install just what you need,
+e.g. `pip install -e ".[api]"`. No key yet? `tenet recall` / `tenet stats` / `tenet doubts` work
+fully offline with `EMBED_PROVIDER=local` (installs `sentence-transformers`, no network call at
+all); `tenet remember` / `tenet chat` / the MCP `learn` tool need a real `DASHSCOPE_API_KEY` (or
+`LLM_PROVIDER=openrouter`) since they distill text with an LLM call — without one you'll see a
+clear "memory write failed: ..." error rather than a silent no-op.
 
 **Works with:** any MCP client ([Claude Desktop](examples/03_mcp_client.md), IDEs, other
 agents) · [LangChain](examples/04_langchain_memory.py) via a thin `TenetMemory` adapter ·
