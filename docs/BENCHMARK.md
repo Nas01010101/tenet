@@ -221,11 +221,36 @@ ablation: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b` → EventQA 56.5, ruler 
   Cloud (config flip). Churn result is reader-robust (identical on gpt-4o).
 
 ## Reproduce
+
+Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
+the provider preset, config, git-sha and exit status logged to `data/bench_runs.jsonl`.
+The `tenet bench run` dispatcher shells out to the exact `scripts/bench_*.py` below (the
+source of truth) and forwards any script-specific flag verbatim; it never reimplements
+the benchmark logic.
+
 ```bash
-python scripts/test_memory.py ; python scripts/test_tenet_e2e.py     # capabilities
-python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2              # efficiency point
-python scripts/lme_recall.py --limit 40 --k 10 --qa --seed 2 --expand 20  # parity point (budget-capped)
-python scripts/bench_horizon.py --principals 12 --k 6 --updates 2,4,6,8,10,12   # long-horizon
-python scripts/bench_knowledge_update.py --principals 4              # supersession + efficiency
-# off-Qwen: prefix with  LLM_PROVIDER=openrouter EMBED_PROVIDER=local OPENROUTER_MODEL=openai/gpt-4o-mini
+tenet bench list                              # what's available + which §/paper each reproduces
+tenet bench run <name> --dry-run [flags]      # print the exact command+env, run nothing
+tenet bench results                           # table of past runs (from data/bench_runs.jsonl)
 ```
+
+| number | one-liner |
+|---|---|
+| capabilities | `python scripts/test_memory.py ; python scripts/test_tenet_e2e.py` |
+| §1-2 efficiency point | `tenet bench run lme-recall --provider openrouter --k 10 --seed 2 --limit 40 --qa` |
+| §1-2 parity point | `tenet bench run lme-recall --provider openrouter --k 10 --seed 2 --limit 40 --qa --expand 20` |
+| §3 long-horizon churn | `tenet bench run churn --provider ollama --principals 12 --k 6 --updates 2,4,6,8,10,12` |
+| §4 supersession | `tenet bench run knowledge-update --provider ollama --principals 4` |
+| §6 FactConsolidation | `tenet bench run factcon --provider ollama --qpc 100 --tenet-read decompose --keys heuristic` |
+| §7 MAB Accurate-Retrieval | `tenet bench run mab-ar --provider openrouter --qpc 100 --judge` |
+| LME-V2 mechanism smoke | `tenet bench run lmev2 --provider local --domain enterprise --n-trajectories 8` |
+| §6.1 paper-method arms | `python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --qpc 100` (raw script) |
+
+`--provider` presets (keyless local paths): `local` (embeddings only), `ollama`
+(EMBED_PROVIDER=local + LLM_PROVIDER=ollama qwen2.5:7b — fully offline),
+`openrouter` (local embeddings + gpt-4o-mini reader), `qwen` (Qwen Cloud, needs
+`DASHSCOPE_API_KEY`). Fine-tune any env with `--env KEY=VAL`. Equivalent raw form still
+works, e.g. `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local python scripts/bench_factcon.py …`.
+
+A read-path performance analysis (where the milliseconds go, and why the Python core is
+the right call vs Rust) is in [`docs/HARNESS.md`](HARNESS.md).

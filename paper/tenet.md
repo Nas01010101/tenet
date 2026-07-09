@@ -273,6 +273,19 @@ Personalized-PageRank graph traversal is genuinely stronger at multi-hop chainin
 narrative text. Together with §4.5, Tenet leads or ties the published field on two of
 MAB's four competencies while being the only system whose ingestion never calls an LLM.
 
+**4.7 Case study — web-agent trajectory memory (LongMemEval-V2).** Adapting Tenet's
+ingestion to LME-V2's web-agent trajectory haystacks [Wu 2026] (DOM states, actions;
+up to 115M tokens), three LLM-free changes — structure-aware chunking, query cleaning,
+and Qwen3-Embedding + BM25 hybrid retrieval (RRF) — lifted gold-evidence recall from a
+naive port's ~12% to **59.7%** @48K budget (63.3% @72K; corpus ceiling ~92%) at ~0.25s
+query latency. End-to-end accuracy is reader-gated, not retrieval-gated — and the gate is
+the *reasoning mode*, not precision: 4-bit local 45.1% [39.5, 50.8], 8-bit 40.3%,
+full-precision hosted *without* extended thinking 40.7% (over-abstains), all near the
+same P(correct|gold)≈0.5–0.6 extraction ceiling; the leaderboard-default extended
+thinking (~8K reasoning tokens/question) is what converts retrieval headroom, and lies
+outside our compute budget. The substrate transfers; the binding constraint is
+measurable and external to the memory.
+
 ## 5. Limitations
 
 - **Multi-session synthesis** is the one category where RAG still leads (42.9 vs 57.1).
