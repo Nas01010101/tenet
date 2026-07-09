@@ -229,6 +229,30 @@ $h=14$\,d; a sweep archives current, unpinned memories with $d$ below a threshol
 identity facts never decay. Retrieval is a \textbf{dual pool}---beliefs for consistency,
 evidence for verbatim detail---guaranteeing each a share of the budget.
 
+\subsection{Fact dynamics: learning how facts change}\label{sec:dynamics}
+A belief state becomes a world model when it can predict its own drift. The
+bi-temporal ledger is a training set for exactly this: every superseded fact is an
+observed lifetime ($\texttt{valid\_at}\!\to\!\texttt{invalid\_at}$) and every current
+fact a right-censored one. Per key \emph{class} $c$ (the attribute part of
+$\kappa$), we place a conjugate Gamma prior on an exponential change rate; with
+$n_c$ observed supersessions and total exposure $T_c$, the posterior-predictive
+survival is Lomax:
+\begin{equation}
+P(\text{still valid after } \Delta t \mid c) \;=\;
+\Big(\tfrac{\beta_0 + T_c}{\beta_0 + T_c + \Delta t}\Big)^{\alpha_0 + n_c},
+\end{equation}
+so ``residence'' learns a slow hazard and ``mood'' a fast one, per user, in closed
+form, with no LLM. A second ledger statistic captures \emph{ripple}: the smoothed
+co-supersession probability $P(c' \text{ changes} \mid c \text{ changed})$; when a
+correlated key changes, the survival of its neighbors is discounted
+($S \to S^{1+\gamma\,\text{bump}}$), so one observation updates beliefs about
+unobserved attributes---the defining world-model behavior. Both surface as a
+\emph{confidence} on every recalled fact and an $\textit{uncertain\_facts}()$ list
+the agent can use to re-verify with the user. Deliberately, confidence does
+\textbf{not} demote a fact's rank: a doubted fact is still the best known answer,
+and we measured rank-demotion re-creating the churn failure of \S\ref{sec:churn}
+(current value pushed behind distractors) before reverting to annotation-only.
+
 \subsection{Belief-anchored evidence expansion}\label{sec:expansion}
 Compressing a session into a few keyed beliefs wins churn and efficiency but can drop the
 fine detail a multi-hop question needs, even when the right session \emph{is} retrieved.

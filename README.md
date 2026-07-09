@@ -73,6 +73,7 @@ state** — a compact *world model of the user* — and stays correct where retr
 | stale evidence | retrieved forever | **retired** (belief–evidence consistency) |
 | write policy | store everything | **surprise-gated** (predictive coding) |
 | forgetting | none (grows forever) | salience-decay sweep |
+| fact drift | unmodeled | **learned hazards** — P(still valid) per attribute, `tenet doubts` |
 | queryable across time | no | **time-travel** (`recall(as_of=t)`) |
 | read path | — | **no LLM call** |
 
