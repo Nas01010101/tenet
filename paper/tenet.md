@@ -194,6 +194,12 @@ correlated key changes, neighbors' survival is discounted, so one observation up
 beliefs about unobserved attributes. Both surface as a per-fact `confidence` and an
 `uncertain_facts()` re-verification list. Deliberately annotation-only: rank-demoting
 doubted facts measurably re-created the churn failure (§4.2) before we reverted it.
+A pre-registered follow-up asked whether confidence could also route *reader compute*
+(extractive/cheap/full tiers): it cannot — on 120 questions no threshold configuration
+in an 84-point sweep saved reader tokens within 2pp of the 91.7% all-full-reader
+baseline; confidence is a *currency* signal, orthogonal to the relevance errors that
+dominate extractive mistakes. Calibration suffices for caveats and doubt surfacing, not
+for compute routing. We report the null rather than shipping it.
 A trained alternative — a 276k-param GRU temporal point process (Weibull hazard +
 next-key + contrastive next-value heads) — beats the closed form decisively on
 planted non-memoryless structure (NLL 2.76→1.99, CI excludes 0; next-value 0.997

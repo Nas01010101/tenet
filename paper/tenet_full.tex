@@ -269,6 +269,14 @@ the agent can use to re-verify with the user. Deliberately, confidence does
 \textbf{not} demote a fact's rank: a doubted fact is still the best known answer,
 and we measured rank-demotion re-creating the churn failure of \S\ref{sec:churn}
 (current value pushed behind distractors) before reverting to annotation-only.
+A pre-registered follow-up asked whether the same confidence could route \emph{reader
+compute} (extractive / cheap / full tiers): it cannot---on 120 questions, no threshold
+configuration in an 84-point sweep saved reader tokens within 2pp of the 91.7\%
+all-full-reader baseline, because confidence is a \emph{currency} signal orthogonal to
+the relevance errors that dominate extractive mistakes (rank-1 belief correct on
+currency but wrong on attribute in a third of routed cases). Calibration is sufficient
+for caveats and doubt surfacing; not for compute routing. We report both nulls rather
+than shipping either.
 
 \paragraph{A trained neural dynamics module.} The closed-form model is memoryless by
 family; we also train a compact (276k-param, 1-layer GRU) \emph{neural temporal point

@@ -599,6 +599,34 @@ python scripts/eval_local_distiller.py --candidates tenet-distiller-1.5b-v2 \
 Training pipeline (data gen, canonicalization, empty-target rebalancing, LoRA SFT):
 `scripts/distiller_lora/{generate_train_data.py,rebalance_empties.py,train_lora.py}`.
 
+## 11. Pre-registered negative results — routing and MH decomposition (measured 2026-07-10)
+
+Two probes with pre-registered gates, reported as measured (`scripts/bench_routing.py`,
+`scripts/bench_mh_decompose.py`, commit 5fcf2a8; qwen3.7-plus tier).
+
+**Confidence-routed answering: gate NOT met.** Hypothesis: per-fact `p_valid` +
+relevance margin can route reader spend across three tiers (extractive / flash / plus).
+On 120 questions (ChurnBench U∈{2,8} + FC sh_6k), baseline 91.7% [85.3, 95.4] at 28.9k
+reader tokens; an 84-config threshold sweep found **no** configuration saving tokens
+within 2pp — reaching the pre-registered ≥40% cut costs −9 to −12pp, past the −5pp
+negative trigger. Diagnosis (verified): extractive-if-taken accuracy is 67.7% because
+the rank-1 belief is often the wrong *attribute* for the query; relevance margins have
+near-zero dynamic range (p50 0.025); `p_valid` contributes only +0.8pp. The dynamics
+layer's confidence is a **currency** signal — orthogonal to the relevance errors that
+sink extractive routing. Consistent with the pre-registration: confidence remains
+**annotation-only** (caveats, doubts surfacing), and we report calibration as
+insufficient for compute routing. The recall pool was byte-identical across tiers
+(routing gated compute only, never ranking).
+
+**Multi-hop decomposition: clean null.** FC mh_6k n=20 single-variable A/B — cheap
+Self-Ask-style decomposition (avg 2.4 sub-questions), per-sub-question recall, union
+pool, max-serial reader — scores 25.0 [11.2, 46.9] in **both** arms (+0.0pp; two
+questions flipped, offsetting — a real reshuffle, not a no-op). Below the pre-registered
++15pp escalation bar, so the full mh_32k run was not spent. Together with the
+`navigate()` null (§9-era A/B), the evidence now triangulates: **FactConsolidation
+multi-hop is reader-reasoning-bound** — hop composition, not retrieval pool
+construction, is the binding constraint on a clean store at this tier.
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
