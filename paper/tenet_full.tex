@@ -746,6 +746,18 @@ recall, not knowledge churn; we report the loss plainly (\texttt{BENCHMARK.md}~\
 A related audit finding: the published LoCoMo audit's 156 error entries correct
 \emph{evidence citations}, not gold answers---an ``audit-corrected'' key changes QA
 accuracy by exactly $0.0$\,pp by construction.
+\textbf{Natural-language updates under-fire keyed supersession.} On PersonaMem-v2
+(NapMem's benchmark; 4-way MC, $n{=}485$, deterministic scoring) a blind no-memory
+control scores $34.4\%$ vs both memory arms at $\sim$50.5\%---so memory is load-bearing
+and the comparison is valid---but \tenet{} and RAG \emph{tie} ($50.5$ vs $50.9$,
+McNemar $p{=}0.92$), and on the retraction subset we predicted \tenet{} would win, RAG
+leads if anything ($74.2$ vs $67.7$, ns). Cause, measured: only $3.8\%$ of turns trigger
+keyed supersession because conversational ``I've switched to $X$'' rarely produces a
+distilled key that collides with the prior belief---the paraphrase gap again. This bounds
+our churn claim: it holds when updates carry a stable attribute (\S\ref{sec:churn},
+\S\ref{sec:fc}), not for free-form preference drift. (We repurposed PersonaMem's
+full-context task as retrieval, so absolute scores are not vendor-comparable;
+\texttt{BENCHMARK.md}~\S13.)
 \textbf{Multi-session synthesis} still trails RAG (42.9 vs 57.1) under
 \texttt{gpt-4o}-tier readers---though this inverts under 2026 frontier readers
 (\S: reader-generality); session-diverse retrieval is the natural next step. \textbf{Multi-hop chaining} trails graph memory (45
