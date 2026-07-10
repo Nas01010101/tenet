@@ -663,6 +663,60 @@ questions flipped, offsetting — a real reshuffle, not a no-op). Below the pre-
 multi-hop is reader-reasoning-bound** — hop composition, not retrieval pool
 construction, is the binding constraint on a clean store at this tier.
 
+## 12. LoCoMo-10 — the field's marketed long-conversation benchmark (measured 2026-07-10)
+
+LoCoMo (Maharana et al., ACL 2024) is the benchmark Mem0 markets **92.5** on, and the one
+Zep, MemMachine, EverMemOS and the Qwen team's NapMem (arXiv:2607.05794) report against —
+so we put Tenet on it to sit next to those names. 10 conversations, 1,540 non-adversarial
+questions across 4 categories (multi-hop / temporal / open-domain / single-hop; category 5
+adversarial is skipped, as every published result does). Harness `scripts/bench_locomo.py`
+mirrors §1's multi-session ingest: per conversation, distill each session into Tenet
+(dual-pool: distilled facts + dated raw turns), cache the store, answer over it.
+**n=500, category-stratified, seed 0, 0 API failures.**
+
+> **JUDGE CAVEAT — read before comparing.** Published LoCoMo numbers use a **gpt-4o-mini**
+> judge; we judge with **qwen3.7-plus** and cannot replicate their judge, so every number
+> here is **qwen-judged and NOT directly comparable to vendor gpt-4o-mini-judged numbers**
+> (our absolute scores are also depressed by a strict short-answer reader prompt + k=10).
+> The **within-harness** arm comparison (tenet vs rag, identical reader + judge) IS valid.
+
+QA accuracy (qwen-judged; reader qwen3.7-plus, k=10; Wilson 95% CIs):
+
+| category | TENET (ours) | RAG (baseline) |
+|---|---|---|
+| 1 · multi-hop | 21.7% [14.5, 31.2] | 21.7% [14.5, 31.2] |
+| 2 · temporal | 18.3% [12.0, 26.8] | **28.8% [21.0, 38.2]** |
+| 3 · open-domain | 12.9% [5.1, 28.9] | 9.7% [3.3, 24.9] |
+| 4 · single-hop | 46.2% [40.3, 52.1] | **51.6% [45.7, 57.5]** |
+| **OVERALL** | 33.8% [29.8, 38.1] | **38.8% [34.6, 43.1]** |
+
+**Honest within-harness result: naive RAG beats Tenet on LoCoMo (paired McNemar p=0.031**;
+50 tenet-only-right vs 75 rag-only-right of 125 discordant pairs). The lead is concentrated
+in **temporal** (9 vs 20 discordant) and **single-hop** (31 vs 46) — the verbatim-detail
+categories — and ties on multi-hop (9 vs 9). Mechanism, from the miss dump: Tenet's
+distillation *paraphrases away* the exact wording the answer key rewards (e.g. gold "To raise
+awareness and start conversations" → Tenet answers the generalized "To make a real impact";
+RAG surfaces the raw turn and matches). LoCoMo stresses **verbatim multi-session recall**, not
+the churn/supersession Tenet is built for (§3, §9) — so it plays to a raw-turn baseline's
+strength. This is a real limitation on this benchmark family, reported plainly (cf. §8).
+
+**Audit-corrected key — Δ = +0.0pp, by construction (a novel, precise data point).** We ran
+it against the community answer-key audit (github.com/dial481/locomo-audit, `errors.json`).
+On inspection **all 156 audit entries match the dataset and 0 change the gold answer** — the
+audit corrects **evidence citations / reasoning** (error types WRONG_CITATION 57,
+HALLUCINATION 33, TEMPORAL_ERROR 26, ATTRIBUTION_ERROR 24, …; `cited_evidence` →
+`correct_evidence`), while `golden_answer` is byte-identical to the original. So the
+"corrupt-key" issue is a **citation-grounding** problem, not an **answer** problem: it does
+**not** move LLM-judge QA accuracy (Δ=0.0pp on all 500 questions), and vendor QA-accuracy
+leaderboards — which grade only the answer — are unaffected by it. The audit *would* move an
+evidence-recall / citation-faithfulness metric, which those leaderboards don't report.
+
+Not escalated to the full 1,540: n=500 already gives a decisive paired result (p=0.031) and a
+mechanism confirmed in the misses; tripling the run would only tighten CIs, not change the
+verdict. mem0/hipporag arms were not run here (mem0's per-turn LLM ADD/UPDATE ingestion is
+thousands of calls over LoCoMo's long histories — add behind a flag if a mem0-comparable
+number is wanted).
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
@@ -690,6 +744,7 @@ tenet bench results                           # table of past runs (from data/be
 | §6.1 paper-method arms | `python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --qpc 100` (raw script) |
 | §9 ChurnBench | `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5 --distractor-sessions 4 --k 10` |
 | §9.1 ChurnBench fix A/B | `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 10` (raw script) |
+| §12 LoCoMo-10 (qwen-judged) | `LLM_PROVIDER=qwen python scripts/bench_locomo.py --data <scratch>/locomo10.json --audit <scratch>/audit_errors.json --cache <scratch>/locomo_cache --sample 500 --seed 0` (raw script; data from snap-research/locomo + dial481/locomo-audit) |
 
 `--provider` presets (keyless local paths): `local` (embeddings only), `ollama`
 (EMBED_PROVIDER=local + LLM_PROVIDER=ollama qwen2.5:7b — fully offline),
