@@ -92,7 +92,11 @@ state** — a compact *world model of the user* — and stays correct where retr
 
 ![knowledge churn](docs/horizon.svg)
 
-**As a fact is updated 2→12 times, RAG-memory falls 100%→50%. Tenet holds 100%.**
+**As one templated fact is updated 2→12 times, RAG-memory falls 100%→50%. Tenet holds 100%.**
+
+<sub>The single-attribute churn primitive (`bench_horizon`). Under harder *paraphrased*, multi-attribute
+churn ([ChurnBench §9](docs/BENCHMARK.md#9-churnbench--parametric-high-churn-stress-test-measured-2026-07-10)),
+Tenet's default-on read-time consistency reaches 98/92/82 at U=2/8/32 — falsification and fix reported in full.</sub>
 
 </div>
 
