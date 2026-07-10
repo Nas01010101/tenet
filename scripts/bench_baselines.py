@@ -193,13 +193,17 @@ _QENT = ('List the named entities in the question. Reply JSON only: '
          '{{"entities": ["<entity>", ...]}}\n\nQuestion: {question}')
 
 
-def build_hipporag(cache_id: str, facts, embedder):
+def build_hipporag(cache_id: str, facts, embedder, batch_size: int = 40):
+    """batch_size default (40) matches MAB's short, templated fact lines — enough triples
+    per call to still fit max_tokens=1600. Callers with longer/more verbose fact text
+    (e.g. ChurnBench's natural-language update sentences) should pass a smaller batch_size
+    to avoid the model truncating mid-JSON and losing the whole batch to the fallback path."""
     cf = BCACHE / f"{cache_id}.hippo.json"
     if cf.exists():
         g = json.load(open(cf))
     else:
         triples, fallbacks = {}, 0
-        B = 40
+        B = batch_size
 
         def _one(batch):
             body = "\n".join(f"{s}. {t}" for s, t in batch)
