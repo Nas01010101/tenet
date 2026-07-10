@@ -717,6 +717,54 @@ verdict. mem0/hipporag arms were not run here (mem0's per-turn LLM ADD/UPDATE in
 thousands of calls over LoCoMo's long histories — add behind a flag if a mem0-comparable
 number is wanted).
 
+## 13. PersonaMem-v2 — the NapMem personalization benchmark, with a blind control (measured 2026-07-10)
+
+PersonaMem-v2 (Jiang et al., arXiv:2512.06688; `bowen-upenn/PersonaMem-v2`, CC-BY-4.0) is the
+NapMem/Qwen-team-adjacent LLM-personalization benchmark. We picked it as the *fair-fight*
+follow-up to LoCoMo (§12): a large slice (`updated=True`, ~21% — all `ask_to_forget`) are
+preference **retractions**, where a distractor encodes the STALE value — exactly the
+supersession regime Tenet is built for. Each item is a long implicit-persona chat history + a
+user message + a **4-way multiple-choice** set of candidate responses (1 correct + 3
+distractors). **Scoring is deterministic MC (pick the letter) — NO LLM judge, so no
+judge-comparability caveat** (contrast §12). `scripts/bench_persona.py`, n=485 over 20
+personas (seed 0), reader qwen3.7-plus, k=20 retrieval, 0 API failures.
+
+**The load-bearing number is the BLIND control.** Before reading anything into the arm
+comparison, we ran a no-memory arm (reader sees only the profile line + question + 4 options,
+zero retrieved memory). If blind ≈ the memory arms, the MC would be answerable without memory
+and the comparison meaningless. It is not:
+
+| segment (n) | BLIND (no memory) | TENET (ours) | RAG (baseline) |
+|---|---|---|---|
+| OVERALL (485) | **34.4% [30.3, 38.8]** | 50.5% [46.1, 54.9] | 50.9% [46.5, 55.4] |
+| updated=True · retraction (124) | 35.5% [27.6, 44.2] | 67.7% [59.1, 75.3] | **74.2% [65.8, 81.1]** |
+| updated=False · plain recall (361) | 34.1% [29.4, 39.1] | 44.6% [39.6, 49.8] | 42.9% [37.9, 48.1] |
+
+(4-way MC, random = 25%.) **Memory is clearly load-bearing** — the retrieval arms beat blind
+by +16pp overall (non-overlapping CIs), and by +25-32pp on the hardest categories
+(anti-stereotypical, ask-to-forget). So the arm comparison is meaningful — and the honest
+result is a **dead tie: Tenet 50.5% ≈ RAG 50.9%** (paired McNemar p=0.92).
+
+**The supersession hypothesis is NOT supported.** On the retraction regime where Tenet was
+supposed to win, RAG is if anything ahead (74.2 vs 67.7, McNemar p=0.15, ns). Two measured
+reasons: (1) ingestion-time **keyed supersession barely fires** on natural-language preference
+updates — mean superseded fraction **3.8%** across personas, because the distiller assigns
+different keys to the old vs new mention scattered across distant turns, so Tenet has no
+structural edge here; (2) an explicit "please forget X" instruction is best consumed
+**verbatim**, which favors the raw-turn baseline — the same mechanism that lost us LoCoMo
+(§12). Per-category the two trade blows (Tenet leads anti-stereotypical / health / neutral;
+RAG leads ask-to-forget / therapy / sensitive-info), netting the overall tie.
+
+**Protocol caveat (we repurposed the task).** The official PersonaMem eval feeds the **full**
+32k/128k conversation appended with the query ("append the user_query to the end of its chat
+history") — it is a *full-context reasoning* benchmark, not a retrieval one. We deliberately
+recast it as a **retrieval/compression** task (k=20 turns, ~1-2k tokens vs the full 32k) to
+ask our tenet-vs-rag question. So our absolute numbers are **not comparable** to the paper's
+(frontier LLMs 37-48%, their agentic memory 55%, all full-context); only the within-harness
+blind/tenet/rag comparison at a fixed retrieval budget is valid. Not escalated beyond n=485:
+the tie is unambiguous (p=0.92) and more personas won't turn a supersession-mechanism that
+fires 3.8% of the time into a win.
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
@@ -745,6 +793,7 @@ tenet bench results                           # table of past runs (from data/be
 | §9 ChurnBench | `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5 --distractor-sessions 4 --k 10` |
 | §9.1 ChurnBench fix A/B | `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 10` (raw script) |
 | §12 LoCoMo-10 (qwen-judged) | `LLM_PROVIDER=qwen python scripts/bench_locomo.py --data <scratch>/locomo10.json --audit <scratch>/audit_errors.json --cache <scratch>/locomo_cache --sample 500 --seed 0` (raw script; data from snap-research/locomo + dial481/locomo-audit) |
+| §13 PersonaMem-v2 (MC + blind) | `LLM_PROVIDER=qwen python scripts/bench_persona.py --csv <scratch>/benchmark.csv --cache <scratch>/persona_cache --personas 20 --seed 0 --arms blind,tenet,rag` (raw script; data from bowen-upenn/PersonaMem-v2 benchmark/text/benchmark.csv) |
 
 `--provider` presets (keyless local paths): `local` (embeddings only), `ollama`
 (EMBED_PROVIDER=local + LLM_PROVIDER=ollama qwen2.5:7b — fully offline),
