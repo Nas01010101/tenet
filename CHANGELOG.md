@@ -24,6 +24,24 @@ pre-1.0, so minor versions may include breaking changes.
   reuses belief-anchored expansion + associative hops, replacing a learned
   stop policy with an embedding-based saturation gate, so simple queries
   don't over-fetch and multi-hop queries aren't capped at a fixed depth.
+- **ChurnBench** (`scripts/bench_churn.py`, `tenet bench run churnbench`) —
+  a parametric high-churn stress test (5 keyed attributes, U∈{2,4,8,16,32}
+  paraphrased updates) that **falsifies** §3's single-attribute churn result:
+  on paraphrased multi-attribute churn Tenet was initially the worst arm
+  (`docs/BENCHMARK.md` §9). Reported in full, gate marked falsified.
+- **Local distiller** (`scripts/distiller_lora/`, opt-in
+  `LLM_PROVIDER=ollama OLLAMA_MODEL=tenet-distiller-1.5b-v2`) — a LoRA-tuned
+  Qwen2.5-1.5B that reproduces bi-temporal supersession fully offline (6/6
+  clean-churn, 0.0 fabrication, 0.775 key-consistency on a small decontaminated
+  probe; point estimates, no CIs). Default provider stays Qwen Cloud.
+
+### Changed
+- **`recall()` now defaults to read-time belief-evidence consistency**
+  (`consistency_threshold=0.70`, `src/tenet/consistency.py`) — drops a raw
+  slice close to a superseded fact whose key already has a current fact in the
+  pool. Fixes ChurnBench stale-raw leakage: churn half-life <2 → 8 (`docs/BENCHMARK.md`
+  §9.1). Opt out with `consistency_threshold=None` or `TENET_CONSISTENCY_DEFAULT=off`;
+  all 7 deterministic regression suites pass with it on.
 
 ## [0.1.0] - 2026-07-09
 
@@ -77,10 +95,12 @@ and evaluation needed to defend it honestly.
   95%); an accuracy-per-token frontier (`--expand`) from 1.6x RAG's
   accuracy/token at half the context, up to parity with RAG's one-shot
   accuracy at equal-or-fewer tokens.
-- **Long-horizon knowledge churn** (`bench_horizon.py`): RAG collapses
-  100%→50% as a fact is updated more times than its retrieval budget can
-  hold; Tenet holds 100% — supersession keeps exactly one current value
-  regardless of churn.
+- **Long-horizon knowledge churn** (`bench_horizon.py`, templated
+  single-attribute primitive): RAG collapses 100%→50% as a fact is updated
+  more times than its retrieval budget can hold; Tenet holds 100% —
+  supersession keeps exactly one current value regardless of churn. (The
+  harsher paraphrased ChurnBench, §9, falsifies then partially recovers this;
+  see [Unreleased].)
 - **MemoryAgentBench (ICLR 2026) FactConsolidation** (`bench_factcon.py`):
   official SubEM metric + reader prompt, zero-LLM ingestion, weak local-7B
   reader. Single-hop 86.5% pooled — above the published mini-tier SOTA

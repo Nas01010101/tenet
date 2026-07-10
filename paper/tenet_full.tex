@@ -40,7 +40,11 @@ consistency rule} retires raw evidence that echoes a superseded belief; (iv) a
 \textbf{surprise-gated write policy} stores only observations the current state does not
 already predict; and (v) \textbf{belief-anchored evidence expansion} spends spare context
 on raw turns from the sessions the belief state already surfaced. The read path never
-calls an LLM. \tenet{} holds $100\%$ under churn at every update level; on
+calls an LLM. \tenet{} holds $100\%$ on this templated single-attribute churn primitive at
+every update level (\S\ref{sec:churn}); on the harsher \emph{paraphrased} multi-attribute
+ChurnBench (\S\ref{sec:churnbench}) a read-time consistency rule---defaulted on---lifts it
+from worst-arm to $98/92/82$ at $U{=}2/8/32$, though write-time delete-outright consolidation
+still leads at extreme churn. On
 MemoryAgentBench \textsc{FactConsolidation} (ICLR~2026) it scores $86.5\%$ single-hop
 \ci{82.8}{89.5}---above the published \texttt{gpt-4o-mini}-tier state of the art
 ($78.0$) despite using a local 7B backbone---and ties the multi-hop state of the art
@@ -81,7 +85,10 @@ current value, rather than at assembly time, where every read must re-derive it.
 \item We identify and name \textbf{knowledge churn}, a structural failure mode of
   retrieval-augmented memory, give a controlled benchmark exhibiting it (RAG:
   $100\%\!\to\!50\%$ as a fact is updated $2\!\to\!12\times$; reader-invariant), and show
-  a belief-state memory is immune by construction (\S\ref{sec:churn}).
+  a belief-state memory is immune on this templated primitive (\S\ref{sec:churn})---then
+  stress-test the claim on a harder paraphrased, multi-attribute variant (ChurnBench,
+  \S\ref{sec:churnbench}) that falsifies it and motivates the read-time consistency fix
+  (\S\ref{sec:churnfix}).
 \item We present \tenet{}: bi-temporal keyed supersession at ingestion, a
   \textbf{belief--evidence consistency rule} that retires stale raw evidence, a
   \textbf{surprise-gated write policy}, salience-decay forgetting, and budget-bounded
@@ -199,8 +206,9 @@ Each turn is distilled by a small LLM into atomic facts, each with a stable sema
 $\kappa=\textit{subject}{::}\textit{attribute}$ (e.g.\ \texttt{user::residence}), a
 salience $s\in[0,1]$, and an event time. The key is what makes supersession reliable:
 embedding similarity cannot separate a \emph{restated} fact from a \emph{value-changed}
-one (we measure a residence value change at cosine $0.99$, indistinguishable from a
-paraphrase), but a shared key can. Where the source text is already structured (as in
+one (we measure a value change at cosine $0.99$---\emph{higher} than a plain rephrasing of
+the same fact at $0.79$, so no similarity threshold separates a changed value from a
+restatement), but a shared key can. Where the source text is already structured (as in
 benchmark fact streams), keys are computed deterministically from the text with no LLM at
 all (\S\ref{sec:fc}).
 
@@ -269,6 +277,14 @@ the agent can use to re-verify with the user. Deliberately, confidence does
 \textbf{not} demote a fact's rank: a doubted fact is still the best known answer,
 and we measured rank-demotion re-creating the churn failure of \S\ref{sec:churn}
 (current value pushed behind distractors) before reverting to annotation-only.
+A pre-registered follow-up asked whether the same confidence could route \emph{reader
+compute} (extractive / cheap / full tiers): it cannot---on 120 questions, no threshold
+configuration in an 84-point sweep saved reader tokens within 2pp of the 91.7\%
+all-full-reader baseline, because confidence is a \emph{currency} signal orthogonal to
+the relevance errors that dominate extractive mistakes (rank-1 belief correct on
+currency but wrong on attribute in a third of routed cases). Calibration is sufficient
+for caveats and doubt surfacing; not for compute routing. We report both nulls rather
+than shipping either.
 
 \paragraph{A trained neural dynamics module.} The closed-form model is memoryless by
 family; we also train a compact (276k-param, 1-layer GRU) \emph{neural temporal point
@@ -401,8 +417,8 @@ accuracy-per-token of any system ($1.6\times$ RAG, $\sim$100$\times$ full-contex
 recall parity. Belief-anchored expansion, capped at RAG's own budget, brings one-shot
 accuracy to \emph{parity} ($57.5=57.5$) at fewer tokens. On a \texttt{gpt-4o-mini} reader
 the parity point edges ahead (60.0 vs 55.0); the per-token dominance holds across
-\texttt{gpt-4o-mini}, \texttt{gpt-4o}, and \texttt{claude-opus-4.8} readers
-($\approx$1.6--1.7$\times$). Given reader stochasticity of $\approx\pm5$--7\,pp at
+the \texttt{gpt-4o-mini} and \texttt{gpt-4o} readers we ran
+($\approx$1.6$\times$). Given reader stochasticity of $\approx\pm5$--7\,pp at
 $n{=}40$, we report one-shot accuracy as parity, not a win. The one category still behind
 RAG is multi-session synthesis (42.9 vs 57.1, up from 28.6; \S\ref{sec:limits}).
 
@@ -541,6 +557,149 @@ case study supports the paper's central claim in a second modality: the memory
 substrate---LLM-free ingestion and sub-second reads---transfers, and where the system
 falls short the binding constraint is measurable and external to the memory.
 
+\subsection{ChurnBench: a parametric stress test that falsifies our own churn claim}\label{sec:churnbench}
+\S\ref{sec:churn}'s churn result uses one templated fact, updated up to 12 times amid
+distractors---a regime pre-registered to structurally favor supersession as soon as
+updates exceed $k$. ChurnBench generalizes it into a harness: a parametric generator
+sweeps updates-per-fact $U\in\{2,4,8,16,32\}$ over five keyed attributes
+(residence/job\_title/car/phone/gym), each updated via \emph{paraphrased}, first-person
+conversational statements (not templated serial-numbered lines) interleaved with
+distractor sessions; SubEM scoring; real \texttt{Tenet.ingest\_session} (no hand-tuned
+keys). Four arms at matched backbone (\texttt{qwen3.7-plus} reader,
+\texttt{bge-small} embedder): \tenet{}, RAG, and Mem0-/HippoRAG-v2-style reused verbatim
+from the \S\ref{sec:baselines} reproduction harness. Pre-registered gate: \tenet{}
+churn half-life (largest swept $U$ with accuracy $\geq90\%$) $\geq2\times$ the best
+baseline, CI-separated at $U{=}8$; $n{=}50$ questions/point, Wilson 95\% CIs.
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+$U$ & 2 & 4 & 8 & 16 & 32\\
+\midrule
+RAG & 96.0 & 100.0 & 100.0 & 78.0 & 30.0\\
+HippoRAG-v2-style & 100.0 & 100.0 & 100.0 & 78.0 & 30.0\\
+Mem0-style & 90.0 & 98.0 & 100.0 & 100.0 & \textbf{100.0}\\
+\tenet{} & 62.0 & 44.0 & 44.0 & 44.0 & 46.0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Result: falsified, not a partial miss.} Churn half-life: \tenet{}${<}2$, RAG
+$8$, HippoRAG-v2-style $8$, Mem0-style $32$. \tenet{} is the \emph{worst} of four arms at
+every tested $U$, including $U{=}2$ (its 95\% CI excludes every baseline at $U{\in}\{2,4,8\}$)---the
+opposite of \S\ref{sec:churn}'s result and of the pre-registered hypothesis. Diagnosing
+a failing case by inspecting \texttt{recall()} directly shows the correct current fact
+\emph{is} ranked first, but two or three raw turns for already-superseded values are
+still in the $k{=}10$ pool alongside it: the write-time stale-echo filter
+(\S\ref{sec:bec}, tuned for near-verbatim echoes) does not reliably retire a raw turn
+phrased differently from its distilled paraphrase (e.g.\ ``I got promoted, I'm now a
+principal analyst.'' vs.\ ``The user's job title is principal analyst.''---cosine falls
+under the filter's threshold). The reader then sees several structurally-identical,
+unordered conflicting statements with no recency cue and often answers from a stale one.
+Mem0-style---which \emph{deletes} superseded memories outright rather than retiring them
+into a still-recallable raw pool---has nothing to leak from and stays flat through
+$U{=}32$; naive RAG and HippoRAG-v2-style, with no consolidation at all, collapse
+$100\!\to\!30$ from $U{=}8\!\to\!32$ exactly as \S\ref{sec:churn} predicts. Diagnosed in
+this work; the fix and its measured effect follow immediately below (full curve,
+misses, and reproduction command in \texttt{docs/BENCHMARK.md} \S9).
+
+\subsection{The fix: read-time belief-evidence consistency + currency-structured context}\label{sec:churnfix}
+The diagnosis names two gaps: \S\ref{sec:bec}'s \texttt{\_STALE\_ECHO} filter is a
+\emph{global} cosine bar tuned for near-verbatim echoes, and the reader prompt gives
+no recency cue over an unordered pool. Two additive, LLM-free, read-time fixes---the
+store and every ChurnBench ingestion cache are untouched, so no re-ingestion is
+needed. \textbf{(1) Read-time belief-evidence consistency}: narrower and more
+sensitive than the global filter, a raw slice is dropped only if it is close to a
+superseded fact whose \emph{key already has a current fact in the top-$k$ pool}---so
+the threshold can drop below the global filter's without opening a cross-key
+false-positive surface. Current-fact ranking is byte-identical on or off; only
+raw-slice pool membership changes. Threshold chosen from a sweep on real $U{=}2$ data
+(ground truth via exact substring match against the deterministic attribute pools):
+$0.70$ gives 100\% recall on genuinely-stale echoes at a 7\% false-positive rate on
+legitimately-current ones (0.60: 81\% FPR; 0.80, the original global threshold: only
+20.9\% recall---why it missed this case). \textbf{(2) Currency-structured reader
+context}: the tenet arm's context is split into ``Current beliefs:'' (distilled,
+dated) then ``Supporting raw context:'' (raw turns, dated) instead of one flat list---product-faithful,
+since the store already knows \texttt{is\_current}/\texttt{valid\_at} (the agent
+surface dates facts the same way); other arms have no such metadata, so their prompts
+are untouched by design.
+
+\begin{center}
+\begin{tabular}{lcccc}
+\toprule
+$U$ & tenet-baseline & tenet+1 & tenet+2 & \textbf{tenet+1+2}\\
+\midrule
+2  & 60.0 & 90.0 & 82.0 & \textbf{98.0}\\
+8  & 42.0 & 84.0 & 82.0 & \textbf{92.0}\\
+32 & 36.0 & 80.0 & 70.0 & \textbf{82.0}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Same cached stores across all four arms (only recall-time config differs), live
+\texttt{qwen3.7-plus} reader, $n{=}50$/point, Wilson 95\% CIs in
+\texttt{docs/BENCHMARK.md} \S9.1. \textbf{Result: partial, pre-registered gate.}
+tenet+1+2 clears $\geq90\%$ at both $U{=}2$ (98.0) and $U{=}8$ (92.0) but falls short
+of Mem0-style's flat 100 at $U{=}32$ (82.0)---the gate's explicit ``ship the fix,
+report half-life honestly'' branch, not a full pass. \textbf{Churn half-life:
+tenet+1+2 $=8$}, up from $<2$, now tied with RAG and HippoRAG-v2-style, still behind
+Mem0-style's 32 (immune by construction---it deletes superseded memories outright).
+All regression gates pass with the fix defaulted on (7 deterministic suites;
+\S\ref{sec:churn}'s $U{=}8$ stays 100\%; FactConsolidation sh\_6k is provably
+invariant---that arm never stores raw slices), so \texttt{recall()}'s
+\texttt{consistency\_threshold} now defaults to $0.70$ in shipped code.
+
+\subsection{Closing the write-path dependency: a local distiller}\label{sec:localdistill}
+Every result above distills with Qwen Cloud (\texttt{qwen3.7-plus}); the write path---turning
+a message into keyed JSON facts---is \tenet{}'s only remaining LLM dependency (reads are
+already LLM-free, \S\ref{sec:setup}). We probe whether a small model, LoRA-tuned and served
+fully offline, closes it: can a 1.5B model reproduce the reference distiller's supersession
+behavior with zero cloud calls?
+
+\textbf{Method.} LoRA SFT (bf16, rank 16, 2 epochs, $\sim$490 synthetic message$\to$facts
+pairs, assistant-only loss) of Qwen2.5-0.5B/1.5B-Instruct, labels from the cloud reference
+with keys \emph{force-canonicalized} per known attribute (one key regardless of phrasing).
+An early candidate's fabrication rate of $1.0$ traced to a data-balance bug---only 6\% of
+training examples had an empty target---not a capacity limit; rebalancing to $\sim$22\%
+empty-target examples (free to generate, no cloud labeling) dropped it to $0.08$--$0.17$ with
+F1/key-consistency unchanged. Evaluated on a \emph{decontaminated} held-out set: novel values
+and phrasings, 0/66 message overlap with training data (an earlier, contaminated screen
+inflated key-consistency by $\sim$0.17 and hid the finding below entirely).
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+candidate & F1 & fabrication & key-consist. & churn (superseded/6)\\
+\midrule
+qwen2.5-0.5b-instruct (untuned) & 0.295 & 0.333 & 0.30 & 0/6\\
+qwen2.5-1.5b-instruct (untuned) & 0.405 & 1.0 & 0.40 & 5/6\\
+tenet-distiller-0.5b-v2 (LoRA) & 0.867 & 0.167 & 0.75 & 3/6\\
+tenet-distiller-1.5b-v2 (LoRA) & 0.652 & \textbf{0.0} & \textbf{0.775} & \textbf{6/6}\\
+\midrule
+qwen3.7-plus (cloud reference)\textsuperscript{*} & 1.0 & 0.0 & 0.707 & --\\
+\bottomrule
+\end{tabular}
+\end{center}
+{\footnotesize\textsuperscript{*}measured on the contaminated screen, not the decontaminated
+set---reported for context, not as an apples-to-apples comparison.}
+
+\textbf{Finding: key-consistency, not F1, is the load-bearing axis for supersession.} The
+untuned baselines cannot supersede reliably (0/6, 5/6) despite non-trivial F1; the 0.5B LoRA
+variant has \emph{higher} F1 than the 1.5B one (0.867 vs 0.652) but lower key-consistency
+(0.75 vs 0.775) and only 3/6 clean-churn supersessions---a 0.5B-specific
+out-of-distribution consistency gap the contaminated screen did not surface. The 1.5B LoRA
+model reproduces the reference's supersession behavior fully offline (6/6, zero fabrication)
+and its canonical-key training \emph{exceeds} the cloud reference's own key-consistency
+(0.775 vs 0.707), because forcing one key per attribute at training time is a constraint ad
+hoc cloud prompting does not get for free. It passes an end-to-end supersession gate
+(move/manager-change) the untuned baselines fail, and ships as an opt-in
+\texttt{LLM\_PROVIDER=ollama} path, making the full learn$\to$supersede$\to$doubt loop run
+with zero cloud calls. We report this as a probe, not a production claim: the eval is
+$n{=}26$ messages / 8 paraphrase groups, deterministic point estimates without confidence
+intervals---directionally strong enough to ship as opt-in, wide-$N$ validation is future
+work. Full tables and the LoRA training pipeline: \texttt{docs/BENCHMARK.md} \S10,
+\texttt{scripts/distiller\_lora/}.
+
 \section{Discussion}
 \textbf{Where the belief state wins.} Both MAB competencies reward what supersession
 provides: FactConsolidation directly (the store contains exactly one current value; no
@@ -573,7 +732,15 @@ full-scale (800 and $\sim$2{,}000 questions) with CIs. \textbf{Distillation qual
 free-form conversation, keys come from a small LLM distiller; a missed key match degrades
 supersession to ordinary storage (fail-soft, but the churn guarantee is only as good as
 the keying). \textbf{Scope}: single-user assistant memory; multi-writer stores and
-adversarial updates are untested.
+adversarial updates are untested. \textbf{Stale raw-turn leakage under natural
+conversational churn} (\S\ref{sec:churnbench}, measured, not hypothetical): with several
+attributes each updated many times via paraphrased statements, already-superseded raw
+turns can survive the write-time stale-echo filter and outvote the correct current fact
+in the reader's context. \textbf{Partially fixed} (\S\ref{sec:churnfix}): read-time
+belief-evidence consistency plus a currency-structured reader context raise churn
+half-life from $<2$ to $8$ (both regression-gate-clean, defaulted on), but the combined
+fix still falls short of Mem0-style's write-time-consolidation immunity at $U{=}32$ ---
+the residual gap, not the whole failure mode, is what remains open.
 
 \section{Conclusion}
 Treating agent memory as a self-consistent belief state rather than a document index

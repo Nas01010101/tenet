@@ -24,7 +24,7 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 | No LLM in read path | ✅ | ✅ | ✅ | ✅ (tools) | ✅ | ❌ (rerank) |
 | MCP-native | ✅ | partial | ✅ | ❌ | ❌ | ❌ |
 | Graph infra required | ❌ (light) | ❌ (removed theirs) | ✅ (heavy writes) | ❌ | ❌ | ❌ |
-| **Long-horizon churn tested** | ✅ (100% @12 updates) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Long-horizon churn tested** | ✅ (100% @12 updates, templated primitive; 98/92/82 on paraphrased ChurnBench §9) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | LongMemEval_S | 57.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
 
@@ -41,8 +41,11 @@ design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc
   surprise-gated writes — a bounded, self-pruning store, not append-forever), and
   (2) a **world-model efficiency** framing (predictive-coding: store only what isn't
   already predicted).
-- **Tests a regime none of them report:** long-horizon knowledge churn, where Tenet holds
-  100% and RAG-style retrieval collapses to 50%.
+- **Tests a regime none of them report:** long-horizon knowledge churn. On the templated
+  single-attribute primitive Tenet holds 100% while RAG-style retrieval collapses to 50%; on
+  the harsher paraphrased, multi-attribute ChurnBench (`docs/BENCHMARK.md` §9) the default-on
+  read-time consistency fix reaches 98/92/82 at U=2/8/32 (Mem0-style delete-outright leads at
+  extreme churn) — the falsification and fix are reported in full, not hidden.
 - **Optimises the frontier the leaderboard ignores:** accuracy *per token*. Tenet gives
   the best acc/1k-tokens of the approaches we ran (49 vs RAG 27 vs full-context 0.5) — and,
   via belief-anchored expansion, can spend that headroom to reach one-shot **accuracy parity

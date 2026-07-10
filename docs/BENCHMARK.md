@@ -277,6 +277,355 @@ ablation: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b` → EventQA 56.5, ruler 
 - QA numbers are off-Qwen (gpt-4o / gpt-4o-mini readers), n=40, one seed; reader noise
   ≈±5–7pp, so the one-shot result is reported as *parity*, not a win. Shipped system uses Qwen
   Cloud (config flip). Churn result is reader-robust (identical on gpt-4o).
+- **Stale raw-turn leakage under natural conversational churn** (§9, ChurnBench):
+  when several attributes are each updated many times via paraphrased (not templated)
+  first-person statements, already-superseded raw turns can survive the write-time
+  stale-echo filter and reach the same recall window as the current fact, sometimes
+  outvoting it. **Fixed as of §9.1** (read-time key-scoped consistency + a
+  currency-structured reader context, both defaulted on, all regression gates
+  passing): churn half-life rose from `<2` to `8`, still short of Mem0-style's
+  flat 32 — a partial, honestly-reported fix, not a full close of the gap.
+
+## 9. ChurnBench — parametric high-churn stress test (measured 2026-07-10)
+
+§3's churn primitive (one fact, one attribute) is pre-registered to structurally favor
+Tenet as soon as updates exceed k. ChurnBench generalizes it: a parametric generator
+sweeps **updates-per-fact U ∈ {2,4,8,16,32}** over **5 keyed attributes per principal**
+(residence/job_title/car/phone/gym), each updated U times across a simulated,
+distractor-laden conversation (realistic first-person filler, chunked into
+`Tenet.ingest_session` calls), then asks for the CURRENT value. Deterministic **SubEM**
+scoring (MAB's normalize+substring, no LLM judge; `scripts/test_churnbench.py` — fixed
+seed → identical dataset hash, hand-checked scorer cases, no LLM). Four arms at matched
+backbone (`qwen3.7-plus` reader, local `bge-small` embedder, `qwen3.6-flash` distiller):
+**tenet** (real product path — `Tenet.ingest_session`, no hand-tuned keys), **rag**
+(top-k cosine), and **mem0**/**hipporag** reused verbatim from `bench_baselines.py`'s
+MAB-method reproductions (generic over `(serial, text)` facts, so no surgery was needed
+beyond a read-prompt swap dropping FC's "fictional pool" framing — irrelevant to
+ChurnBench's plausible, non-fictional profile updates).
+
+**Design choice**: a new script (`scripts/bench_churn.py`), not an in-place rewrite of
+`bench_horizon.py` — that script is already the cited source for §3/README Fig. 1 and a
+simpler, still-valid primitive; ChurnBench is registered separately as `tenet bench run
+churnbench`.
+
+Headline metric — **churn half-life** (largest swept U with accuracy ≥90%), n=50
+questions/point (10 principals × 5 facts), Wilson 95% CIs, 0 API-error exclusions:
+
+| U | TENET | RAG | MEM0-style | HippoRAG-v2-style |
+|---:|---:|---:|---:|---:|
+| 2  | 62.0 [48.2, 74.1] | 96.0 [86.5, 98.9] | 90.0 [78.6, 95.7] | **100.0** [92.9,100.0] |
+| 4  | 44.0 [31.2, 57.7] | **100.0** [92.9,100.0] | 98.0 [89.5, 99.6] | **100.0** [92.9,100.0] |
+| 8  | 44.0 [31.2, 57.7] | **100.0** [92.9,100.0] | **100.0** [92.9,100.0] | **100.0** [92.9,100.0] |
+| 16 | 44.0 [31.2, 57.7] | 78.0 [64.8, 87.2] | **100.0** [92.9,100.0] | 78.0 [64.8, 87.2] |
+| 32 | 46.0 [33.0, 59.6] | 30.0 [19.1, 43.8] | **100.0** [92.9,100.0] | 30.0 [19.1, 43.8] |
+
+churn half-life: **tenet <2, rag 8, mem0 32, hipporag 8**.
+
+**Ship gate: FALSIFIED, not a partial miss.** The pre-registered gate (Tenet half-life
+≥2× best baseline, CI-separated at U=8) required Tenet to *lead*; instead Tenet is the
+*worst* arm at every tested U, including U=2 (barely any churn), with a 95% CI that
+excludes every baseline at U=2, 4, and 8. This is the opposite of §3's result and the
+opposite of the pre-registered hypothesis — reported plainly, not massaged.
+
+**Root cause, diagnosed (not patched — out of scope for this build; the point of a
+pre-registered gate is to surface this, not hide it).** Inspecting `recall()` directly on
+a failing case (`docs/churnbench_misses.jsonl` has 130 tenet misses of 230 total) shows
+the correct current fact *is* ranked first —
+
+```
+"The user's job title is junior engineer."        | chunk5   (current, correct)
+"User: I got promoted, I'm now a head analyst."    | chunk2   (stale raw, superseded)
+"User: I got promoted, I'm now a principal designer." | chunk4  (stale raw, superseded)
+"User: I got promoted, I'm now a principal analyst."  | chunk3  (stale raw, superseded)
+```
+
+— but three *stale raw turns* for already-superseded values are still in the k=10 pool
+alongside it. Tenet's dual-pool recall never re-derives supersession for raw slices at
+read time; it relies on a write-time **stale-echo filter** (§3.4/`_STALE_ECHO`) to retire
+a raw turn whose embedding closely matches an *expired* distilled fact. That filter is
+tuned for near-verbatim echoes; it does not reliably catch a raw turn phrased as "I got
+promoted, I'm now a principal analyst." against its distilled paraphrase "The user's job
+title is principal analyst." — different enough wording that cosine similarity falls
+under the filter's threshold. The reader then sees several structurally-identical,
+un-ordered conflicting statements and — with no recency cue in the prompt (`answer_natural`,
+reused verbatim from `bench_knowledge_update.py`'s existing convention) — often picks a
+wrong one, even though it's ranked last. **Two conditions this benchmark hits that the
+existing churn/knowledge-update tests (§3–4) mostly don't**: (a) *natural paraphrased*
+conversational updates (not FC's templated serial-numbered lines, where §6's deterministic
+substring keys sidestep this entirely), and (b) enough attributes/updates per principal
+that stale echoes routinely survive into the same k-window as the current fact. Mem0
+(explicit ADD/UPDATE ops that *delete* the old memory outright — no raw pool to leak from)
+and even naive RAG (no supersession machinery to half-work) are structurally immune to
+this specific failure mode, which is why they hold up better at low/mid U here.
+**Actionable, not fixed here**: either raise raw-slice recall to defer to co-present
+current facts on the same key, lower/adapt `_STALE_ECHO` for paraphrase distance (embedding
+similarity, not string similarity), or give the reader an explicit recency ordering cue.
+
+**What still replicates**: naive RAG *and* HippoRAG-v2-style (dense+PPR — still
+fundamentally top-k over raw lines, no consolidation) both collapse at high U (100→30
+from U=8→32) exactly as §3 predicts once stale copies exceed k — RAG's known failure mode
+is real and reproduces here. Mem0-style, which *does* consolidate at write time (delete,
+not retire-and-keep), stays flat at 100% through U=32 — the closest thing to Tenet's own
+mechanism family, and the one arm this build's stale-raw-leakage bug doesn't touch.
+
+Reproduce: `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5
+--distractor-sessions 4 --k 10 --arms tenet,rag,mem0,hipporag --updates 2,4,8,16,32`
+(deterministic unit tests: `python scripts/test_churnbench.py`, no LLM). Artifacts:
+`docs/churnbench_results.json` (full curve), `docs/churnbench_misses.jsonl` (every
+miss, all arms), `docs/churnbench_curve.png` (plot).
+
+![ChurnBench accuracy vs updates-per-fact](churnbench_curve.png)
+
+### 9.1 The fix — read-time belief-evidence consistency + currency-structured context (measured 2026-07-10)
+
+§9's diagnosis named two independent gaps: the write-time stale-echo filter
+(`_STALE_ECHO`) is a *global* cosine bar tuned for near-verbatim echoes, and the
+reader prompt gives no recency cue over an unordered pool. Two additive,
+LLM-free, read-time fixes — the store/ingestion is untouched, so every
+ChurnBench ingestion cache built for §9 is reused byte-for-byte:
+
+**Component 1 — read-time belief-evidence consistency** (`src/tenet/consistency.py`,
+wired into `MemoryCore.recall(consistency_threshold=...)`). Narrower and more
+sensitive than the existing global `_STALE_ECHO` filter: a raw slice is dropped
+if it is close to a superseded fact whose **key already has a current fact in
+the top-k pool** — i.e. we already know the current value for that key, so a
+close paraphrase of an old one is confirmed-stale, not just embedding-adjacent.
+Scoping to one key's own value chain lets the threshold go lower than the
+global filter without opening a cross-key false-positive surface. Current-fact
+ranking is byte-identical with the feature on or off — only raw-slice pool
+membership changes.
+
+**Component 2 — currency-structured reader context** (`scripts/bench_churn.py`'s
+`format_tenet_context`). The tenet arm's context is split into `Current
+beliefs:` (distilled, current facts, dated) then `Supporting raw context:` (raw
+verbatim turns, dated) instead of one flat unordered list. Tenet's store knows
+`is_current` and `valid_at`; surfacing that structure is product-faithful (the
+agent surface already dates/caveats facts the same way — `tenet/agent.py`'s
+`_format_memories`/`_fmt_age`), not benchmark-tuning. Other arms (RAG/Mem0/
+HippoRAG-v2) have no such metadata to present, so their prompts are
+deliberately untouched — that asymmetry *is* the design difference measured.
+
+**Threshold sweep (grounded in real data, not synthetic).** Built the real
+U=2 tenet store (10 principals, matching this section's exact config), then
+for every raw slice that echoes a *known* pool value (ground truth via exact
+substring match against `churnbench_data.py`'s deterministic attribute pools)
+computed cosine to the nearest superseded fact of that attribute. Two
+populations: raw slices echoing a **stale** value (want high cosine → dropped)
+vs. raw slices echoing the **current** gold value, scored against that same
+attribute's own superseded history (the false-positive risk — want low
+cosine → kept). n=43 stale, n=43 current (`docs/churnbench_threshold_sweep.json`):
+
+| threshold | stale-echo recall (want ↑) | current-value false-positive rate (want ↓) |
+|---:|---:|---:|
+| 0.60 | 100.0% | 81.4% |
+| **0.70** | **100.0%** | **7.0%** |
+| 0.80 (existing global `_STALE_ECHO`) | 20.9% | 0.0% |
+
+0.60 is too aggressive (drops 4 in 5 legitimate current-value raw slices);
+0.80 reproduces the original failure (misses 4 in 5 genuinely stale echoes —
+this is *why* the global filter didn't catch the paraphrase case in the first
+place). **0.70 dominates**: catches every stale echo in this sample at a 7%
+false-positive cost that's cheap by construction — the distilled current fact
+is unaffected either way; a false positive here only drops a *supplementary*
+raw duplicate, never the answer itself.
+
+**4-arm × 3-U A/B**, same cached stores across all four (only recall-time
+config differs), `qwen3.7-plus` reader live, n=50 questions/point (10
+principals × 5 facts), Wilson 95% CIs, seed=1 (`docs/churnbench_fix_ab.json`):
+
+| U | tenet-baseline | tenet+1 (consistency) | tenet+2 (currency context) | **tenet+1+2** |
+|---:|---:|---:|---:|---:|
+| 2  | 60.0 [46.2, 72.4] | 90.0 [78.6, 95.7] | 82.0 [69.2, 90.2] | **98.0 [89.5, 99.6]** |
+| 8  | 42.0 [29.4, 55.8] | 84.0 [71.5, 91.7] | 82.0 [69.2, 90.2] | **92.0 [81.2, 96.8]** |
+| 32 | 36.0 [24.1, 49.9] | 80.0 [67.0, 88.8] | 70.0 [56.2, 80.9] | **82.0 [69.2, 90.2]** |
+
+(tenet-baseline here is a fresh live-reader measurement of the *same*
+unmodified code path as §9's headline table — 60/42/36 vs §9's 62/44/46;
+the qwen3.7-plus API reader is not perfectly deterministic call-to-call even
+at temperature 0, so a few points of run-to-run drift on n=50 is expected.
+Both components are individually positive and stack: tenet+1 alone is already
+the dominant single change, tenet+2 alone helps less on its own but adds
+another +6–8pp combined with tenet+1 at every U.)
+
+**Ship gate (pre-registered): PARTIAL — ship the fix, report half-life
+honestly.** tenet+1+2 clears the ≥90% bar at **both** U=2 (98.0%) and U=8
+(92.0%), but falls short of Mem0-style's flat 100% at U=32 (82.0% < 100%) —
+exactly the "partial" branch of the pre-registered gate, not the full pass.
+**Churn half-life: tenet+1+2 = 8** (largest U with accuracy ≥90%) — up from
+`<2` at baseline, now tied with RAG (8) and HippoRAG-v2-style (8), still
+behind Mem0-style (32, immune by construction — it deletes superseded
+memories outright rather than retiring them into a still-recallable raw
+pool). The fix closes the gap the diagnosis identified; it does not turn
+Tenet into Mem0's write-time consolidation, which was never the design.
+
+**Regression gates — all pass** (with the fix defaulted ON: `consistency_threshold=0.70`):
+
+| gate | result |
+|---|---|
+| `test_memory.py` / `test_dynamics.py` / `test_agent_uncertainty.py` / `test_errors.py` / `test_langgraph_store.py` / `test_navigate.py` / `test_churnbench.py` | all 7 pass |
+| `bench_horizon.py --principals 3 --distractors 6 --updates 4,8` | RAG 100→67%, **Tenet 100→100%** (unchanged from §6.2b) |
+| `bench_factcon.py --cells sh_6k --qpc 20 --nav --tenet-read extract` | **structurally invariant**: FC's tenet arm never stores `kind='raw'` rows (`build_tenet` calls `core.store(..., key=...)` only, never `ingest_session`), so `consistency_threshold` cannot change its pool by construction — confirmed empirically byte-identical (75.0% / 80.0% nav) with the fix on and off. The 75% measured here is *below* the 90% figure quoted in §6.2b's prose; that gap is live-`qwen3.7-plus`-reader run-to-run variance on n=20, present identically with the fix on or off, and pre-existing — not a regression this fix introduces. |
+
+**Default decision: ON.** All regression gates passed (or are provably inert),
+so `MemoryCore.recall()`'s `consistency_threshold` now defaults to **0.70**
+(`src/tenet/memory.py`) — every caller (agent, MCP server, CLI, benchmarks)
+gets the fix unless it explicitly opts out (`consistency_threshold=None`, or
+env `TENET_CONSISTENCY_DEFAULT=off`). Component 2 (currency-structured
+context) stays an explicit opt-in flag in the benchmark script
+(`--currency-context`) — it's a `scripts/bench_churn.py`-local prompt-assembly
+change, not a `recall()` default, so there's no equivalent "ship default"
+question; the A/B above shows it's worth turning on together with component 1
+when reproducing this table.
+
+Reproduce: `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 10
+--out docs/churnbench_fix_ab.json --dump docs/churnbench_fix_ab_misses.jsonl`
+(threshold sweep is a one-off analysis, not wired into `tenet bench run`).
+Artifacts: `docs/churnbench_threshold_sweep.json`, `docs/churnbench_fix_ab.json`,
+`docs/churnbench_fix_ab_misses.jsonl`.
+
+## 10. Local distiller (zero-cloud) verdict
+
+**Measured 2026-07-10.** Every result above runs `ingest()`'s fact-distillation on Qwen Cloud. This section asks a
+different question: can a small model, LoRA-tuned and served fully offline (ollama on a
+single RTX 3080, 16GB), replace that one LLM call and still reproduce bi-temporal
+supersession — with **zero cloud dependency in the write path**? Probe code:
+[`scripts/distiller_lora/`](../scripts/distiller_lora/) + `scripts/eval_local_distiller.py`.
+
+**Metrics** (`scripts/distiller_lora/harness.py`), scored against `qwen3.7-plus` reference
+labels on a held-out message set: `json_valid`, `kv_pathology` (the small-model "key=value
+statement" failure mode), precision/recall/F1 (fuzzy statement match), `fabrication` (mean
+facts emitted on question/chitchat messages, which have none — want 0), and **`key_consist`**
+(mean within-group key identity across paraphrases of one fixed fact) — the property that
+actually governs supersession, since two paraphrases of the same fact must map to the same
+`subject::attribute` key or the store treats them as unrelated.
+
+### 10.1 Stage-0 — quick candidate screen
+
+Initial screen across untuned base models plus the first LoRA-tuned candidate, against the
+cloud reference as the quality ceiling. **Caveat: this eval set shares value-pools/templates
+with the LoRA training data** — see §10.2 for the decontaminated numbers this screen turned
+out to overstate.
+
+| candidate | json_valid | kv_pathology | precision | recall | f1 | fabrication | key_consist |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| qwen2.5:0.5b-instruct (untuned) | 1.0 | 0.0 | 0.417 | 0.361 | 0.361 | 0.5 | 0.293 |
+| qwen2.5:1.5b-instruct (untuned) | 1.0 | 0.0 | 0.667 | 0.583 | 0.611 | 1.0 | 0.627 |
+| qwen2.5:7b (untuned) | 0.667 | 0.3 | 0.324 | 0.278 | 0.291 | 0.167 | 0.56 |
+| tenet-distiller-0.5b (LoRA v1) | 1.0 | 0.0 | 0.944 | 0.889 | 0.907 | 1.0 | 0.907 |
+| **qwen/qwen3.7-plus (cloud reference)** | 1.0 | 0.0 | 1.0 | 1.0 | 1.0 | 0.0 | **0.707** |
+
+Two things this screen got wrong, caught before shipping: (1) `tenet-distiller-0.5b`'s
+`fabrication=1.0` — a data-balance bug (only 6% empty-target training examples; a
+JSON-fact-extractor trained almost exclusively on positive examples invents a fact from
+every message). Fixed by rebalancing to ~22% empty-target examples
+(`rebalance_empties.py`), which dropped fabrication to 0.08–0.17 with F1/key-consistency
+unchanged — no cloud labeling needed, `{"facts": []}` is free to generate. (2) the eval set
+itself was contaminated (shared value-pools/templates with train), inflating key-consistency
+— see §10.2.
+
+### 10.2 Decontaminated verdict (the ship decision)
+
+`gen_clean_eval.py` regenerates the held-out set with **novel values and phrasings, 0/66
+message overlap with train** (leakage check enforced and logged:
+`clean_eval_gen.log` — `leakage check PASS: 0/66 clean-eval messages appear in train`).
+n=26 messages / 8 paraphrase groups. `clean_churn` is the same probe as §10.1 columns but on
+a churn-update chain (residence/car/phone attributes, 3 attrs × 2 updates = 6 expected
+supersessions):
+
+| candidate | precision | recall | f1 | fabrication | key_consist | clean churn (superseded / expected) |
+|---|---:|---:|---:|---:|---:|---:|
+| qwen2.5:0.5b-instruct (untuned) | 0.357 | 0.262 | 0.295 | 0.333 | 0.30 | 0 / 6 |
+| qwen2.5:1.5b-instruct (untuned) | 0.464 | 0.381 | 0.405 | 1.0 | 0.40 | 5 / 6 |
+| tenet-distiller-0.5b-v2 (LoRA, rebalanced) | 0.929 | 0.833 | 0.867 | 0.167 | 0.75 | 3 / 6 |
+| **tenet-distiller-1.5b-v2 (LoRA, rebalanced)** | 0.714 | 0.619 | 0.652 | **0.0** | **0.775** | **6 / 6** |
+
+(`docs/../scripts/distiller_lora/data/clean_verdict.json`, `clean_run.log` — gitignored
+probe artifacts, regenerate via §10.3's repro commands.)
+
+Decontamination mattered: it deflated key-consistency for every candidate relative to
+§10.1's contaminated screen (e.g. `tenet-distiller-0.5b-v2`'s 0.92 → 0.75) and exposed a gap
+§10.1 hid entirely — **the untuned base models cannot supersede at all or do so
+unreliably** (0/6 and 5/6), while **`tenet-distiller-1.5b-v2` reproduces the reference's
+supersession behavior fully offline: 6/6 clean-churn supersessions, 0.0 fabrication**. Its
+key-consistency (0.775) also **beats the cloud reference's own Stage-0 number (0.707)** —
+force-canonicalizing keys in the training labels (one key per known attribute, regardless of
+phrasing) is a training-time constraint ad hoc cloud prompting doesn't get for free. Note the
+asymmetry stated plainly: the reference's 0.707 is a §10.1 (contaminated-screen) number,
+not re-measured on the §10.2 decontaminated set — the comparison is cross-eval, included
+because it's the same claim the underlying memory record makes and it's directionally
+consistent with 10.1's cloud-vs-local gap, not because it's apples-to-apples.
+
+The 0.5B tier is the interesting near-miss: `tenet-distiller-0.5b-v2` has *better* F1 (0.867
+vs 0.652) but *worse* key-consistency (0.75 vs 0.775) and only 3/6 clean-churn supersessions
+— confirming the harness's own thesis that **F1 is not the load-bearing axis for
+supersession; key-consistency is**, and 0.5B has an out-of-distribution consistency gap
+1.5B doesn't.
+
+**Ship gate: PASS for the 1.5B tier.** `eval_local_distiller.py`'s end-to-end gate
+(`scripts/test_tenet_e2e.py`-style move/manager-change supersession, plus the churn probe)
+against the untuned baselines: `qwen2.5:0.5b-instruct` and `qwen2.5:1.5b-instruct` both FAIL
+e2e (`gate_untuned.log` — "durable diet fact was lost", "expected >=2 superseded, got 0").
+`tenet-distiller-1.5b-v2` PASSes e2e and clears clean-churn 6/6 (`gate_fulllocal.log`).
+Shipped as an **opt-in** provider (`LLM_PROVIDER=ollama OLLAMA_MODEL=tenet-distiller-1.5b-v2`
+— README ["Fully local / air-gapped"](../README.md#3-fully-local--air-gapped)), not the
+default — the shipped product still runs on Qwen Cloud.
+
+**Caveat, stated plainly (same as README): these are deterministic point estimates on a
+small eval — n=26 messages / 8 paraphrase groups, no confidence intervals.** A probe
+result, not a production SLA; every other benchmark in this document reports Wilson 95% CIs
+at n≥40, this one does not, because a LoRA training+eval cycle at CI-grade N was out of
+scope for a hackathon-window probe. Wider-N validation with CIs is future work.
+
+**Also measured, transferable gotcha**: ollama's native safetensors import silently mangles
+a merged bf16 Qwen2.5 LoRA checkpoint (model outputs only `"?????"`) while the *same* merged
+weights generate correct JSON via `transformers.generate()` directly — it's the ollama GGUF
+conversion path, not the training or the merge. Fix: convert with llama.cpp's
+`convert_hf_to_gguf.py --outtype q8_0` before `ollama create`, and always sanity-check a
+freshly merged model with `transformers.generate()` before assuming a training bug.
+
+### 10.3 Reproduce
+
+```bash
+# regenerate the decontaminated eval set + leakage check
+python scripts/distiller_lora/gen_clean_eval.py
+# score all four candidates on the decontaminated set -> clean_verdict.json
+python scripts/distiller_lora/clean_eval_run.py
+# Stage-3 end-to-end + churn gate (untuned baselines vs the tuned candidate)
+python scripts/eval_local_distiller.py --candidates qwen2.5:0.5b-instruct qwen2.5:1.5b-instruct \
+    --box http://100.88.179.78:11434 --gate-only
+python scripts/eval_local_distiller.py --candidates tenet-distiller-1.5b-v2 \
+    --box http://100.88.179.78:11434 --gate-only
+```
+Training pipeline (data gen, canonicalization, empty-target rebalancing, LoRA SFT):
+`scripts/distiller_lora/{generate_train_data.py,rebalance_empties.py,train_lora.py}`.
+
+## 11. Pre-registered negative results — routing and MH decomposition (measured 2026-07-10)
+
+Two probes with pre-registered gates, reported as measured (`scripts/bench_routing.py`,
+`scripts/bench_mh_decompose.py`, commit 5fcf2a8; qwen3.7-plus tier).
+
+**Confidence-routed answering: gate NOT met.** Hypothesis: per-fact `p_valid` +
+relevance margin can route reader spend across three tiers (extractive / flash / plus).
+On 120 questions (ChurnBench U∈{2,8} + FC sh_6k), baseline 91.7% [85.3, 95.4] at 28.9k
+reader tokens; an 84-config threshold sweep found **no** configuration saving tokens
+within 2pp — reaching the pre-registered ≥40% cut costs −9 to −12pp, past the −5pp
+negative trigger. Diagnosis (verified): extractive-if-taken accuracy is 67.7% because
+the rank-1 belief is often the wrong *attribute* for the query; relevance margins have
+near-zero dynamic range (p50 0.025); `p_valid` contributes only +0.8pp. The dynamics
+layer's confidence is a **currency** signal — orthogonal to the relevance errors that
+sink extractive routing. Consistent with the pre-registration: confidence remains
+**annotation-only** (caveats, doubts surfacing), and we report calibration as
+insufficient for compute routing. The recall pool was byte-identical across tiers
+(routing gated compute only, never ranking).
+
+**Multi-hop decomposition: clean null.** FC mh_6k n=20 single-variable A/B — cheap
+Self-Ask-style decomposition (avg 2.4 sub-questions), per-sub-question recall, union
+pool, max-serial reader — scores 25.0 [11.2, 46.9] in **both** arms (+0.0pp; two
+questions flipped, offsetting — a real reshuffle, not a no-op). Below the pre-registered
++15pp escalation bar, so the full mh_32k run was not spent. Together with the
+`navigate()` null (§9-era A/B), the evidence now triangulates: **FactConsolidation
+multi-hop is reader-reasoning-bound** — hop composition, not retrieval pool
+construction, is the binding constraint on a clean store at this tier.
 
 ## Reproduce
 
@@ -303,6 +652,8 @@ tenet bench results                           # table of past runs (from data/be
 | §7 MAB Accurate-Retrieval | `tenet bench run mab-ar --provider openrouter --qpc 100 --judge` |
 | LME-V2 mechanism smoke | `tenet bench run lmev2 --provider local --domain enterprise --n-trajectories 8` |
 | §6.1 paper-method arms | `python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --qpc 100` (raw script) |
+| §9 ChurnBench | `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5 --distractor-sessions 4 --k 10` |
+| §9.1 ChurnBench fix A/B | `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 10` (raw script) |
 
 `--provider` presets (keyless local paths): `local` (embeddings only), `ollama`
 (EMBED_PROVIDER=local + LLM_PROVIDER=ollama qwen2.5:7b — fully offline),

@@ -37,7 +37,10 @@ retiring raw evidence that echoes a superseded belief; (iv)~applies a
 model cannot already predict; and (v)~closes the accuracy gap to raw retrieval with
 \textbf{belief-anchored evidence expansion}---spending spare context on query-relevant turns
 from the sessions the belief state already surfaced. Tenet holds \textbf{$100\%$ current-value
-accuracy across all churn levels} (where a strong RAG-memory falls to $50\%$), matches strong
+accuracy across all levels of the templated single-attribute churn primitive} (where a strong
+RAG-memory falls to $50\%$; on a harder \emph{paraphrased} multi-attribute variant this claim
+is falsified and recovered by a read-time consistency fix---full preprint / \texttt{BENCHMARK.md}~\S9),
+matches strong
 RAG on retrieval recall ($95$--$97.5\%$), and---with expansion---\textbf{matches its one-shot
 answer accuracy at equal-or-lower token budget} ($57.5\%$ vs $57.5\%$, gpt-4o reader) while
 retaining a high-efficiency point at \textbf{half the context} and the \textbf{best
@@ -142,7 +145,8 @@ keyed facts, and an \textbf{evidence layer} of raw turns. Reads never call an LL
 semantic key $\kappa=\textit{subject}\!:\!\textit{attribute}$ (e.g.\ \texttt{user:residence}),
 a salience $s\in[0,1]$, and an event time. The key makes supersession reliable: embedding
 similarity cannot separate a \emph{restated} fact from a \emph{value-changed} one (we measure
-a value change at cosine $0.99$, indistinguishable from a paraphrase), but a shared key can.
+a value change at cosine $0.99$---\emph{higher} than a plain rephrasing of the same fact at
+$0.79$, so no similarity threshold separates them), but a shared key can.
 
 \textbf{Bi-temporal supersession.} Every memory carries event time
 ($\texttt{valid\_at},\texttt{invalid\_at}$) and transaction time
@@ -248,8 +252,8 @@ budget and beats it at every lower one; the one category still behind is \emph{m
 synthesis ($42.9$ vs $57.1$, up from $28.6$), where a question needs several evidence sessions
 but only some are surfaced. $^{*}$Full-context, at a weaker reader, spends $100\times$ the
 tokens for no gain over RAG. Reader-robust: on a cheaper \texttt{gpt-4o-mini} reader the parity
-point edges ahead (Tenet $60.0$ vs RAG $55.0$); per-token dominance holds across
-\texttt{gpt-4o-mini}, \texttt{gpt-4o}, and \texttt{claude-opus-4.8} ($\approx$$1.6$--$1.7\times$).
+point edges ahead (Tenet $60.0$ vs RAG $55.0$); per-token dominance holds across the
+\texttt{gpt-4o-mini} and \texttt{gpt-4o} readers we ran ($\approx$$1.6\times$).
 
 \subsection{Knowledge churn (headline)}
 \label{sec:churn}
@@ -318,7 +322,8 @@ $[68.3, 72.9]$ excludes HippoRAG-v2's 67.6), RULER SH-QA 75.0 (parity with 76),
 LME(S*) 46.3 vs 50.7, and RULER MH-QA 45.0 vs 66 --- the honest loss:
 Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
 narrative text. Together with \S4.5, Tenet leads or ties the published field on two of
-MAB's four competencies while being the only system whose ingestion never calls an LLM.
+MAB's four competencies while being the only published memory framework in this comparison
+whose ingestion never calls an LLM.
 
 \subsection{Case study: web-agent trajectory memory (LongMemEval-V2)}
 Adapting Tenet's ingestion to LME-V2's web-agent trajectory haystacks~[Wu 2026] (DOM

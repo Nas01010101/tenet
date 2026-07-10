@@ -52,11 +52,15 @@ for distillation, `qwen3.7-plus` for reading — all via the OpenAI-compatible D
 famous systems collapse (Zep 7%, Mem0 18%, MemGPT 28%) — Tenet scores **86.5% single-hop,
 above the published state of the art (78.0)**, and ties multi-hop SOTA (30.2), using a
 *weaker* backbone and zero-LLM ingestion (official metric + prompt verbatim, all 800
-questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd of all
-published systems** (20+ points above Mem0/Zep/MemGPT) and **beats the field on EventQA
-(70.7 vs 67.6)**. We also reimplemented four rival paper methods (Mem0, CAR, HippoRAG-v2,
-MemAgent) in the same harness: **Tenet leads every arm on both axes**. On our controlled
-knowledge-churn benchmark, **RAG collapses 100%→50% while Tenet holds 100%**; on
+questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
+published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
+Mem0/Zep/MemGPT) and **beats the field on EventQA (70.7 vs 67.6)**. We also reimplemented
+four rival paper methods (Mem0, CAR, HippoRAG-v2, MemAgent) in the same harness: **Tenet
+leads every arm on both axes**. On our controlled knowledge-churn *primitive* (one templated
+attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the harsher
+*paraphrased* multi-attribute ChurnBench a read-time consistency fix (now default-on) lifts
+Tenet from worst-arm to 98/92/82 at U=2/8/32, with delete-outright consolidation still
+leading at extreme churn (`docs/BENCHMARK.md` §9). On
 LongMemEval_S Tenet has the best accuracy-per-token (49.2 vs RAG 27.4 per 1k tokens).
 Honest weak spots — multi-session synthesis and multi-hop chaining — are reported, not
 hidden. Every number reproduces from one documented command: `docs/BENCHMARK.md`.
@@ -91,6 +95,16 @@ with a 2-page paper + full preprint in `paper/`.
   torch dependency at runtime) swaps in via `TENET_DYNAMICS=neural`.
 - **One BLAS matmul read path, zero LLM calls at query time** (`memory.py:recall`,
   see `docs/HARNESS.md` §3 for the 28–33× speedup over a per-row loop).
+- **A fully local, air-gapped stack — including our own LoRA-tuned distiller.** Beyond
+  swapping providers by env var, the write path's one LLM call (distillation) can run
+  on `tenet-distiller-1.5b-v2`, a Qwen2.5-1.5B model we LoRA-fine-tuned on an RTX 3080
+  to reproduce bi-temporal supersession offline: on a decontaminated held-out eval it
+  hits 6/6 clean-churn supersessions, 0.0 fabrication, and 0.775 key-consistency —
+  *beating* the cloud reference's own 0.707 (`docs/BENCHMARK.md` §10,
+  `scripts/distiller_lora/`). These are deterministic point estimates on a small probe
+  set (n=26 messages / 8 paraphrase groups, no CIs), not a production SLA. Paired with
+  local embeddings, `learn`→`supersede`→
+  `doubts`→time-travel runs with zero cloud calls, network off included.
 
 ### Innovation (30%) — non-trivial logic, modularity, error handling
 - **Memory as a self-consistent belief state, not a document log**: bi-temporal
@@ -142,9 +156,11 @@ with a 2-page paper + full preprint in `paper/`.
 - **Same-harness reproduction of four published methods** (CAR, Mem0-style,
   HippoRAG-v2-style, MemAgent-style) — Tenet leads every arm on both single- and
   multi-hop axes, closest rival CAR at 87.5/33.0 vs Tenet 90.0/36.0 — `docs/BENCHMARK.md` §6.1.
-- **The regime RAG structurally can't scale to**: controlled knowledge-churn benchmark
+- **The regime RAG structurally can't scale to**: on the templated churn primitive
   (a fact updated 2→12 times) — naive-RAG collapses **100% → 50%** past 8 updates,
-  **Tenet holds 100%** throughout (`docs/BENCHMARK.md` §3, `scripts/bench_horizon.py`).
+  **Tenet holds 100%** throughout (`docs/BENCHMARK.md` §3, `scripts/bench_horizon.py`). On
+  the harsher paraphrased ChurnBench (§9) that lead reverses to a falsified gate, recovered
+  to 98/92/82 by the default-on read-time consistency fix — reported, not hidden.
 - **LongMemEval-V2 case study** (web-agent trajectory memory, up to 115M-token
   haystacks): three LLM-free retrieval changes lifted gold-evidence recall from a naive
   port's ~12% to **59.7%** @48K budget, reader-gated rather than retrieval-gated —
@@ -201,3 +217,17 @@ with a 2-page paper + full preprint in `paper/`.
 - [ ] (optional) blog/social post linked
 - [ ] (optional, for full "runs on Alibaba Cloud" credit) backend deployed to ECS/FC —
       see `docs/DEPLOY.md`
+
+## Devpost form draft
+Ready-to-paste content for every Devpost form field (tagline, inspiration,
+what-it-does, how-we-built-it, challenges, accomplishments, what's-next, built-with):
+[`docs/hackathon/DEVPOST.md`](DEVPOST.md).
+
+## Deploy status (checked 2026-07-10)
+Backend-on-Alibaba-Cloud (ECS/FC) is **not deployed** — `.env` has a working
+`DASHSCOPE_API_KEY` but no `ALIBABA_CLOUD_ACCESS_KEY_ID`/`_SECRET` (RAM AccessKey),
+which needs a human console step to generate. The "uses Alibaba Cloud services/APIs"
+proof requirement is satisfied independently of this (DashScope IS Alibaba Cloud Model
+Studio — see `docs/DEPLOY.md` "Current status"); only the optional deployed-backend
+credit is blocked. Deploy scripts for both ECS and Function Compute are ready to run the
+moment an AccessKey is available: `docs/DEPLOY.md`.

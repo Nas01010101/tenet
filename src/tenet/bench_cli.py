@@ -52,6 +52,12 @@ BENCHMARKS: dict[str, tuple[str, str, str]] = {
         "LongMemEval-V2 backend adapter — zero-LLM read-path mechanism smoke test.",
         "scripts/lmev2_adapter.py docstring",
     ),
+    "churnbench": (
+        "bench_churn.py",
+        "Parametric high-churn benchmark — updates-per-fact dial, 4 arms "
+        "(tenet/rag/mem0/hipporag), churn half-life headline metric.",
+        "BENCHMARK.md §9 (ChurnBench)",
+    ),
 }
 
 # --provider presets -> env overrides (keyless local paths for cheap reproduction).

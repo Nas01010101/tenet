@@ -51,9 +51,12 @@ Our **long-horizon knowledge-churn** test (`bench_horizon.py`) is exact-match ag
 the one currently-true value — no judge, nothing to lean on. As a fact gets updated
 more times than a retrieval budget can hold (k=6, up to 12 updates), naive RAG's
 top-k can't hold every stale version and starts serving old answers: it drops from
-100% to 50% accuracy. Tenet holds 100% at every point, because supersession keeps
-exactly one current value per key regardless of how many times it changed — the
-regime long-term memory exists for.
+100% to 50% accuracy. Tenet holds 100% at every point on this templated single-attribute
+primitive, because supersession keeps exactly one current value per key regardless of how
+many times it changed — the regime long-term memory exists for. (We later stress-tested
+that claim on a harsher *paraphrased*, multi-attribute variant — ChurnBench, `docs/BENCHMARK.md`
+§9 — where it initially *failed*; a default-on read-time consistency fix recovers it to
+98/92/82 at U=2/8/32. We report the falsification and the partial fix in full.)
 
 For a standardized comparison against the published field we used
 **MemoryAgentBench's FactConsolidation** (ICLR 2026, arXiv:2507.05257): the official

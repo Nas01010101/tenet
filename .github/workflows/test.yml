@@ -29,6 +29,8 @@ jobs:
         run: python scripts/test_agent_uncertainty.py
       - name: provider-error-handling tests (deterministic, stubbed chat client, no LLM)
         run: python scripts/test_errors.py
+      - name: ollama embedding provider tests (deterministic, stubbed embeddings client, no LLM)
+        run: python scripts/test_providers.py
       - name: LangGraph BaseStore adapter tests (deterministic, no LLM)
         run: python scripts/test_langgraph_store.py
       - name: adaptive multi-hop navigation tests (deterministic, no LLM)
