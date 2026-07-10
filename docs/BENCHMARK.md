@@ -483,6 +483,122 @@ Reproduce: `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 1
 Artifacts: `docs/churnbench_threshold_sweep.json`, `docs/churnbench_fix_ab.json`,
 `docs/churnbench_fix_ab_misses.jsonl`.
 
+## 10. Local distiller (zero-cloud) verdict
+
+**Measured 2026-07-10.** Every result above runs `ingest()`'s fact-distillation on Qwen Cloud. This section asks a
+different question: can a small model, LoRA-tuned and served fully offline (ollama on a
+single RTX 3080, 16GB), replace that one LLM call and still reproduce bi-temporal
+supersession — with **zero cloud dependency in the write path**? Probe code:
+[`scripts/distiller_lora/`](../scripts/distiller_lora/) + `scripts/eval_local_distiller.py`.
+
+**Metrics** (`scripts/distiller_lora/harness.py`), scored against `qwen3.7-plus` reference
+labels on a held-out message set: `json_valid`, `kv_pathology` (the small-model "key=value
+statement" failure mode), precision/recall/F1 (fuzzy statement match), `fabrication` (mean
+facts emitted on question/chitchat messages, which have none — want 0), and **`key_consist`**
+(mean within-group key identity across paraphrases of one fixed fact) — the property that
+actually governs supersession, since two paraphrases of the same fact must map to the same
+`subject::attribute` key or the store treats them as unrelated.
+
+### 10.1 Stage-0 — quick candidate screen
+
+Initial screen across untuned base models plus the first LoRA-tuned candidate, against the
+cloud reference as the quality ceiling. **Caveat: this eval set shares value-pools/templates
+with the LoRA training data** — see §10.2 for the decontaminated numbers this screen turned
+out to overstate.
+
+| candidate | json_valid | kv_pathology | precision | recall | f1 | fabrication | key_consist |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| qwen2.5:0.5b-instruct (untuned) | 1.0 | 0.0 | 0.417 | 0.361 | 0.361 | 0.5 | 0.293 |
+| qwen2.5:1.5b-instruct (untuned) | 1.0 | 0.0 | 0.667 | 0.583 | 0.611 | 1.0 | 0.627 |
+| qwen2.5:7b (untuned) | 0.667 | 0.3 | 0.324 | 0.278 | 0.291 | 0.167 | 0.56 |
+| tenet-distiller-0.5b (LoRA v1) | 1.0 | 0.0 | 0.944 | 0.889 | 0.907 | 1.0 | 0.907 |
+| **qwen/qwen3.7-plus (cloud reference)** | 1.0 | 0.0 | 1.0 | 1.0 | 1.0 | 0.0 | **0.707** |
+
+Two things this screen got wrong, caught before shipping: (1) `tenet-distiller-0.5b`'s
+`fabrication=1.0` — a data-balance bug (only 6% empty-target training examples; a
+JSON-fact-extractor trained almost exclusively on positive examples invents a fact from
+every message). Fixed by rebalancing to ~22% empty-target examples
+(`rebalance_empties.py`), which dropped fabrication to 0.08–0.17 with F1/key-consistency
+unchanged — no cloud labeling needed, `{"facts": []}` is free to generate. (2) the eval set
+itself was contaminated (shared value-pools/templates with train), inflating key-consistency
+— see §10.2.
+
+### 10.2 Decontaminated verdict (the ship decision)
+
+`gen_clean_eval.py` regenerates the held-out set with **novel values and phrasings, 0/66
+message overlap with train** (leakage check enforced and logged:
+`clean_eval_gen.log` — `leakage check PASS: 0/66 clean-eval messages appear in train`).
+n=26 messages / 8 paraphrase groups. `clean_churn` is the same probe as §10.1 columns but on
+a churn-update chain (residence/car/phone attributes, 3 attrs × 2 updates = 6 expected
+supersessions):
+
+| candidate | precision | recall | f1 | fabrication | key_consist | clean churn (superseded / expected) |
+|---|---:|---:|---:|---:|---:|---:|
+| qwen2.5:0.5b-instruct (untuned) | 0.357 | 0.262 | 0.295 | 0.333 | 0.30 | 0 / 6 |
+| qwen2.5:1.5b-instruct (untuned) | 0.464 | 0.381 | 0.405 | 1.0 | 0.40 | 5 / 6 |
+| tenet-distiller-0.5b-v2 (LoRA, rebalanced) | 0.929 | 0.833 | 0.867 | 0.167 | 0.75 | 3 / 6 |
+| **tenet-distiller-1.5b-v2 (LoRA, rebalanced)** | 0.714 | 0.619 | 0.652 | **0.0** | **0.775** | **6 / 6** |
+
+(`docs/../scripts/distiller_lora/data/clean_verdict.json`, `clean_run.log` — gitignored
+probe artifacts, regenerate via §10.3's repro commands.)
+
+Decontamination mattered: it deflated key-consistency for every candidate relative to
+§10.1's contaminated screen (e.g. `tenet-distiller-0.5b-v2`'s 0.92 → 0.75) and exposed a gap
+§10.1 hid entirely — **the untuned base models cannot supersede at all or do so
+unreliably** (0/6 and 5/6), while **`tenet-distiller-1.5b-v2` reproduces the reference's
+supersession behavior fully offline: 6/6 clean-churn supersessions, 0.0 fabrication**. Its
+key-consistency (0.775) also **beats the cloud reference's own Stage-0 number (0.707)** —
+force-canonicalizing keys in the training labels (one key per known attribute, regardless of
+phrasing) is a training-time constraint ad hoc cloud prompting doesn't get for free. Note the
+asymmetry stated plainly: the reference's 0.707 is a §10.1 (contaminated-screen) number,
+not re-measured on the §10.2 decontaminated set — the comparison is cross-eval, included
+because it's the same claim the underlying memory record makes and it's directionally
+consistent with 10.1's cloud-vs-local gap, not because it's apples-to-apples.
+
+The 0.5B tier is the interesting near-miss: `tenet-distiller-0.5b-v2` has *better* F1 (0.867
+vs 0.652) but *worse* key-consistency (0.75 vs 0.775) and only 3/6 clean-churn supersessions
+— confirming the harness's own thesis that **F1 is not the load-bearing axis for
+supersession; key-consistency is**, and 0.5B has an out-of-distribution consistency gap
+1.5B doesn't.
+
+**Ship gate: PASS for the 1.5B tier.** `eval_local_distiller.py`'s end-to-end gate
+(`scripts/test_tenet_e2e.py`-style move/manager-change supersession, plus the churn probe)
+against the untuned baselines: `qwen2.5:0.5b-instruct` and `qwen2.5:1.5b-instruct` both FAIL
+e2e (`gate_untuned.log` — "durable diet fact was lost", "expected >=2 superseded, got 0").
+`tenet-distiller-1.5b-v2` PASSes e2e and clears clean-churn 6/6 (`gate_fulllocal.log`).
+Shipped as an **opt-in** provider (`LLM_PROVIDER=ollama OLLAMA_MODEL=tenet-distiller-1.5b-v2`
+— README ["Fully local / air-gapped"](../README.md#3-fully-local--air-gapped)), not the
+default — the shipped product still runs on Qwen Cloud.
+
+**Caveat, stated plainly (same as README): these are deterministic point estimates on a
+small eval — n=26 messages / 8 paraphrase groups, no confidence intervals.** A probe
+result, not a production SLA; every other benchmark in this document reports Wilson 95% CIs
+at n≥40, this one does not, because a LoRA training+eval cycle at CI-grade N was out of
+scope for a hackathon-window probe. Wider-N validation with CIs is future work.
+
+**Also measured, transferable gotcha**: ollama's native safetensors import silently mangles
+a merged bf16 Qwen2.5 LoRA checkpoint (model outputs only `"?????"`) while the *same* merged
+weights generate correct JSON via `transformers.generate()` directly — it's the ollama GGUF
+conversion path, not the training or the merge. Fix: convert with llama.cpp's
+`convert_hf_to_gguf.py --outtype q8_0` before `ollama create`, and always sanity-check a
+freshly merged model with `transformers.generate()` before assuming a training bug.
+
+### 10.3 Reproduce
+
+```bash
+# regenerate the decontaminated eval set + leakage check
+python scripts/distiller_lora/gen_clean_eval.py
+# score all four candidates on the decontaminated set -> clean_verdict.json
+python scripts/distiller_lora/clean_eval_run.py
+# Stage-3 end-to-end + churn gate (untuned baselines vs the tuned candidate)
+python scripts/eval_local_distiller.py --candidates qwen2.5:0.5b-instruct qwen2.5:1.5b-instruct \
+    --box http://100.88.179.78:11434 --gate-only
+python scripts/eval_local_distiller.py --candidates tenet-distiller-1.5b-v2 \
+    --box http://100.88.179.78:11434 --gate-only
+```
+Training pipeline (data gen, canonicalization, empty-target rebalancing, LoRA SFT):
+`scripts/distiller_lora/{generate_train_data.py,rebalance_empties.py,train_lora.py}`.
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with

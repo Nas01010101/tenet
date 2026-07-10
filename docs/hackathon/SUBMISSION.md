@@ -91,6 +91,14 @@ with a 2-page paper + full preprint in `paper/`.
   torch dependency at runtime) swaps in via `TENET_DYNAMICS=neural`.
 - **One BLAS matmul read path, zero LLM calls at query time** (`memory.py:recall`,
   see `docs/HARNESS.md` §3 for the 28–33× speedup over a per-row loop).
+- **A fully local, air-gapped stack — including our own LoRA-tuned distiller.** Beyond
+  swapping providers by env var, the write path's one LLM call (distillation) can run
+  on `tenet-distiller-1.5b-v2`, a Qwen2.5-1.5B model we LoRA-fine-tuned on an RTX 3080
+  to reproduce bi-temporal supersession offline: on a decontaminated held-out eval it
+  hits 6/6 clean-churn supersessions, 0.0 fabrication, and 0.775 key-consistency —
+  *beating* the cloud reference's own 0.707 (`docs/BENCHMARK.md` §10,
+  `scripts/distiller_lora/`). Paired with local embeddings, `learn`→`supersede`→
+  `doubts`→time-travel runs with zero cloud calls, network off included.
 
 ### Innovation (30%) — non-trivial logic, modularity, error handling
 - **Memory as a self-consistent belief state, not a document log**: bi-temporal

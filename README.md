@@ -156,6 +156,55 @@ store.get(("users", "alex"), "residence").value                # -> {"city": "To
 ```
 Full example (put/get/search/delete/list_namespaces): [`examples/05_langgraph_store.py`](examples/05_langgraph_store.py).
 
+### 3. Fully local / air-gapped
+
+Every call in the write path — `ingest()`'s fact-distillation and `embed_texts()` — can run
+against a local model, so the whole loop (learn → supersede → doubt → time-travel) works with
+**zero cloud calls**, network off included:
+
+```bash
+# .env or shell env
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=tenet-distiller-1.5b-v2   # our LoRA-tuned distiller (below), or any local model
+EMBED_PROVIDER=ollama                  # or EMBED_PROVIDER=local for bge-small (no ollama needed)
+OLLAMA_BASE_URL=http://localhost:11434/v1   # or a GPU box over Tailscale, e.g. http://100.x.x.x:11434/v1
+```
+```bash
+tenet remember "I moved from Boston to Seattle"   # distilled + embedded 100% locally
+tenet doubts                                       # learned-dynamics confidence, still zero-LLM
+```
+
+**What "tenet-distiller-1.5b-v2" is and what was measured:** a LoRA-tuned Qwen2.5-1.5B-Instruct
+that replaces the cloud fact-distiller (`qwen3.7-plus`) for the one LLM-dependent step in the
+write path — turning a message into `subject::attribute` JSON facts with keys stable enough for
+bi-temporal supersession. On a **decontaminated** held-out eval (novel values + phrasings, zero
+train overlap): the untuned 1.5B base model **cannot supersede at all** (0/6 clean-churn cases
+superseded correctly), while the LoRA-tuned model reproduces the cloud reference's supersession
+behavior fully offline — **6/6 clean-churn superseded, 0.0 fabrication rate, 0.775 key-consistency**
+(the metric that actually drives supersession — same attribute must map to the same key across
+paraphrases). That **beats the cloud reference's own key-consistency (0.707)**, because the
+training labels force-canonicalize keys in a way ad hoc cloud prompting doesn't. Full tables:
+[`docs/BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict).
+
+**Caveat, stated plainly:** these are deterministic point estimates on a small eval (n=26
+messages / 8 churn groups), not confidence intervals — a probe result, not a production SLA.
+Directionally strong enough to ship as an opt-in path; wider-N validation is future work.
+
+The training pipeline (data generation, canonicalization, empty-target rebalancing, LoRA SFT)
+lives in [`scripts/distiller_lora/`](scripts/distiller_lora/) and is fully reproducible —
+everything above was trained and evaluated on a single RTX 3080 (16GB). The GGUFs currently
+live on that box, served via ollama; to export and serve your own:
+
+```bash
+# on the GPU box, after training (train_lora.py) + merging (merge_and_export.py):
+#   1. merge the LoRA adapter into the base model (merge_and_export.py does this, bf16 safetensors)
+#   2. convert to GGUF with llama.cpp — ollama's native safetensors import mangles merged
+#      Qwen2.5 bf16 weights (garbage output); GGUF is the path that actually works:
+python llama.cpp/convert_hf_to_gguf.py <merged_dir> --outtype q8_0 \
+    --outfile tenet-distiller-1.5b-v2.gguf
+ollama create tenet-distiller-1.5b-v2 -f Modelfile   # Modelfile: FROM ./tenet-distiller-1.5b-v2.gguf
+```
+
 ## Results
 
 LongMemEval_S (n=40, gpt-4o reader) — honest, reproducible; full detail in

@@ -113,6 +113,7 @@ def ollama_client():
 
 
 OLLAMA_MODEL = get("OLLAMA_MODEL", "qwen2.5:14b")
+OLLAMA_EMBED_MODEL = get("OLLAMA_EMBED_MODEL", "qwen3-embedding:0.6b")
 
 
 def chat_model(qwen_default: str) -> str:
@@ -183,7 +184,7 @@ def _agy_chat(messages) -> str:
 
 
 def embed_texts(texts: list[str]):
-    """Unit-normalised embeddings for the active provider (qwen | local)."""
+    """Unit-normalised embeddings for the active provider (qwen | local | ollama)."""
     import numpy as np
     if EMBED_PROVIDER == "local":
         global _local_embedder
@@ -192,6 +193,8 @@ def embed_texts(texts: list[str]):
             _local_embedder = SentenceTransformer(LOCAL_EMBED_MODEL)
         vecs = _local_embedder.encode(texts, normalize_embeddings=True, show_progress_bar=False)
         return [np.asarray(v, dtype=np.float32) for v in vecs]
+    if EMBED_PROVIDER == "ollama":
+        return _ollama_embed_texts(texts)
     # Qwen/DashScope — batched (cap 10/call), truncate long inputs. A failed embedding
     # RAISES after backoff: a zero/garbage vector silently destroys recall (a 2.6h run
     # once scored 5% because rate-limit failures became zero vectors — never again).
@@ -211,6 +214,40 @@ def embed_texts(texts: list[str]):
                 if attempt == 5:
                     raise RuntimeError(f"embedding failed after retries: {e}") from e
                 _t.sleep(min(2 ** attempt, 30))
+        for v in vecs:
+            a = np.asarray(v, dtype=np.float32)
+            n = np.linalg.norm(a)
+            out.append(a / n if n else a)
+    return out
+
+
+def _ollama_embed_texts(texts: list[str]):
+    """Embeddings via ollama's OpenAI-compatible /v1/embeddings endpoint — the
+    embed half of the fully-local stack (pair with LLM_PROVIDER=ollama for a
+    zero-cloud run). Same fail-loud contract as the qwen path above: a failed
+    embedding raises ProviderError after retries instead of silently degrading
+    into a zero/garbage vector that corrupts recall."""
+    import time as _t
+    import numpy as np
+    client = ollama_client()
+    out = []
+    for i in range(0, len(texts), 10):
+        chunk = texts[i:i + 10]
+        vecs = None
+        last_reason = "exhausted retries with no successful response"
+        for attempt in range(5):
+            try:
+                data = client.embeddings.create(model=OLLAMA_EMBED_MODEL, input=chunk).data
+                vecs = [d.embedding for d in data]
+                break
+            except Exception as e:  # noqa: BLE001
+                msg_lower = str(e).lower()
+                if any(marker in msg_lower for marker in _PERMANENT_MARKERS):
+                    raise ProviderError("ollama", OLLAMA_EMBED_MODEL, str(e)) from e
+                last_reason = str(e)
+                if attempt >= 3:
+                    raise ProviderError("ollama", OLLAMA_EMBED_MODEL, last_reason) from e
+                _t.sleep(1)
         for v in vecs:
             a = np.asarray(v, dtype=np.float32)
             n = np.linalg.norm(a)

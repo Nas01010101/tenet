@@ -400,6 +400,42 @@ deterministic suites; §4.2's U=8 stays 100%; FactConsolidation sh_6k is provabl
 invariant — that arm never stores raw slices), so `recall()`'s
 `consistency_threshold` now defaults to 0.70 in shipped code.
 
+**4.10 Closing the write-path dependency: a local distiller.** Every result above distills
+with Qwen Cloud (`qwen3.7-plus`) — the write path is Tenet's only remaining LLM dependency
+(reads are already LLM-free). We probe whether a small model, LoRA-tuned and served fully
+offline (ollama, one RTX 3080), can close it: LoRA SFT (bf16, rank 16, ~490 synthetic pairs)
+of Qwen2.5-0.5B/1.5B-Instruct, labels from the cloud reference with keys
+**force-canonicalized** per known attribute. An early candidate's fabrication rate of 1.0
+traced to a data-balance bug (6% empty-target training examples, not a capacity limit);
+rebalancing to ~22% empty-target dropped it to 0.08–0.17 with F1/key-consistency unchanged.
+Evaluated on a **decontaminated** held-out set (novel values+phrasings, 0/66 overlap with
+train — an earlier contaminated screen inflated key-consistency by ~0.17 and hid this
+result):
+
+| candidate | F1 | fabrication | key-consist. | clean churn (superseded/6) |
+|---|---:|---:|---:|---:|
+| qwen2.5-0.5b-instruct (untuned) | 0.295 | 0.333 | 0.30 | 0/6 |
+| qwen2.5-1.5b-instruct (untuned) | 0.405 | 1.0 | 0.40 | 5/6 |
+| tenet-distiller-0.5b-v2 (LoRA) | 0.867 | 0.167 | 0.75 | 3/6 |
+| **tenet-distiller-1.5b-v2 (LoRA)** | 0.652 | **0.0** | **0.775** | **6/6** |
+| qwen3.7-plus (cloud ref.)\* | 1.0 | 0.0 | 0.707 | — |
+
+\*measured on the contaminated screen, not the decontaminated set — context, not
+apples-to-apples. **Finding: key-consistency, not F1, is the load-bearing axis for
+supersession.** The untuned baselines cannot supersede reliably despite non-trivial F1; the
+0.5B LoRA variant has *higher* F1 than the 1.5B one (0.867 vs 0.652) but lower
+key-consistency (0.75 vs 0.775) and only 3/6 clean-churn supersessions — a 0.5B-specific
+out-of-distribution gap the contaminated screen hid. The 1.5B model reproduces the
+reference's supersession behavior fully offline (6/6, zero fabrication) and its
+canonical-key training **exceeds the cloud reference's own key-consistency** (0.775 vs
+0.707), since forcing one key per attribute is a training-time constraint ad hoc cloud
+prompting doesn't get for free. It passes an end-to-end supersession gate the untuned
+baselines fail and ships as an opt-in `LLM_PROVIDER=ollama` path — the full
+learn→supersede→doubt loop runs with zero cloud calls. Reported as a probe, not a
+production claim: `n`=26 messages / 8 paraphrase groups, deterministic point estimates
+without confidence intervals. Full tables and pipeline: `docs/BENCHMARK.md` §10,
+`scripts/distiller_lora/`.
+
 ## 5. Limitations
 
 - **Multi-session synthesis** is the one category where RAG still leads (42.9 vs 57.1).
