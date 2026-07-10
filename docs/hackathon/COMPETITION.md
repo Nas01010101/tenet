@@ -1,15 +1,33 @@
 # Competition Reference — Global AI Hackathon Series with Qwen Cloud
 
-> Canonical, verified from the official rules + overview pages on 2026-07-05.
-> Source of truth: https://qwencloud-hackathon.devpost.com  (and `/rules`)
-> Sponsor: **Alibaba Cloud** (Singapore) · Administrator: **Devpost** · 6,311 participants
+> Canonical, verified from the official rules + overview pages on 2026-07-05;
+> dates re-verified against the live Devpost rules on **2026-07-11** (deadline was
+> EXTENDED from the original Jul 9 — the old date still appears on qwencloud.com's
+> marketing page; Devpost's rules/dates pages are the platform of record).
+> Source of truth: https://qwencloud-hackathon.devpost.com  (and `/rules`, `/details/dates`)
+> Sponsor: **Alibaba Cloud** (Singapore) · Administrator: **Devpost** · 7,339 participants
 
-## Dates (Pacific Time)
+## Dates (Pacific Time) — re-verified 2026-07-11
 | Milestone | When |
 |---|---|
-| Submission Period | May 26, 2026 8:00am – **Jul 9, 2026 2:00pm PT** (hard deadline) |
-| Judging Period | Jul 10 – Jul 31, 2026 |
-| Winners announced | ~Aug 7, 2026 |
+| Submission Period | May 26, 2026 8:00am – **Jul 20, 2026 2:00pm PT** (hard deadline) |
+| Judging Period | Jul 28 – Aug 11, 2026 |
+| Winners announced | ~Aug 17, 2026 |
+
+## Submission requirements (verbatim-verified from /rules, 2026-07-11)
+- Public repo URL with **all source, assets, instructions**; **open-source license
+  detectable in the GitHub About section** (ours: MIT, detected ✓ on both repos).
+- Text description of features/functionality.
+- **Proof of Alibaba Cloud Deployment = a link to a code file in the repo that
+  demonstrates use of Alibaba Cloud services/APIs** (NOT a live deployment):
+  ours = `src/tenet/config.py` (DashScope/Model Studio client) + `src/tenet/alicloud_oss.py`.
+- **Architecture diagram** (ours: `docs/architecture.svg` + `docs/ARCHITECTURE.md`).
+- **Demo video < 3 minutes** (judges not required to watch beyond 3:00), publicly on
+  YouTube/Vimeo/Youku, link in the form; must show the project functioning; no
+  third-party trademarks/copyrighted music.
+- Identify the track. Optional: published blog/social post URL → Blog Post Prize.
+- Projects predating the Submission Period must explain their **significant updates**
+  during it (ours: everything since May 26 — the entire repo history).
 
 ## Prizes ($70K+ total; $45K cash)
 - **Each of 5 tracks:** $7,000 cash + $3,000 cloud credits + blog feature + swag + Ambassador invite (1 winner/track)
