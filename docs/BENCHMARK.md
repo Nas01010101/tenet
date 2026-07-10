@@ -15,8 +15,10 @@ Tenet is evaluated on the standard **LongMemEval_S** benchmark (500 questions,
 - **A frontier, not a point** (one `expand` knob): the **efficiency** point gives the
   **best accuracy-per-token** (49.2, 1.6× RAG) at *half* the context; the **parity** point
   **matches strong RAG's one-shot accuracy at equal-or-lower tokens** (57.5% = 57.5%, gpt-4o).
-- **Dominates the long-horizon regime**: as a fact is updated many times, RAG collapses
-  (100%→50%); **Tenet holds 100%**. This is the regime long-term memory is *for*.
+- **Dominates the long-horizon regime on the templated primitive**: as a fact is updated
+  many times, RAG collapses (100%→50%) while Tenet holds 100% there; on the harsher
+  paraphrased ChurnBench (§9) the fixed system measures 98/92/82 at U=2/8/32. This is
+  the regime long-term memory is *for*.
 - **Honest weakness**: multi-session synthesis — the one category still behind RAG
   (42.9 vs 57.1, up from 28.6). Documented in §8.
 
@@ -61,6 +63,27 @@ Tenet ≥ RAG on every type **except multi-session** (43 vs 57, up from 29 befor
 these questions need several evidence sessions, but expansion only deepens the sessions the
 top-*k* already surfaced. Honest limitation, §8. On a cheaper `gpt-4o-mini` reader the parity
 point edges ahead overall (Tenet 60.0 vs RAG 55.0). *(\*full-context under a weaker reader.)*
+
+**Strong-reader row (claude-sonnet-5, measured 2026-07-11).** Same protocol on a fresh
+sample (n=40, **seed 0**, `qwen3.6-flash` distiller — a different seed and distiller than
+the gpt-4o table above, so a new stack row, not a re-run), reader = Sonnet 5 via a batched
+subagent harness (10 questions/agent, per-item isolation instructed), judge =
+`qwen3.7-plus` (cross-family), 0 exclusions
+(`docs/lme_sonnet5_results.json`, `docs/lme_sonnet5_answers.jsonl`):
+
+| System | mode | QA acc [95% CI] | reader tokens | acc / 1k tokens |
+|---|---|---:|---:|---:|
+| RAG @k=10 | top-*k* turns | 82.5 [68.0, 91.3] | 2,153 | 38.3 |
+| **Tenet** | efficiency (`--expand 0`) | **90.0** [76.9, 96.0] | **1,186** | **75.9** (2.0×) |
+| **Tenet** | parity (`--expand 20`) | **90.0** [76.9, 96.0] | 2,143 | 42.0 |
+
+At this reader tier Tenet is ahead of RAG at **both** operating points (CIs overlap at
+n=40 — read as ≥, not a CI-separated win), and the efficiency point doubles
+accuracy-per-token at half the context. Notably **multi-session — our documented weak
+spot — flips at this tier** (RAG 50%, Tenet 75/87.5): a stronger reader appears to
+compose Tenet's compact belief items across sessions better than it sifts RAG's raw-turn
+pool. Harness caveat: reader calls were batched 10-per-agent with isolation instructions
+rather than issued as fully independent API calls.
 
 ## 3. Long-horizon knowledge churn — where memory structurally wins (`scripts/bench_horizon.py`)
 A fact updated N times over a long history, retrieval budget k=6, 15 distractors,
