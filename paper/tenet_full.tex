@@ -541,6 +541,52 @@ case study supports the paper's central claim in a second modality: the memory
 substrate---LLM-free ingestion and sub-second reads---transfers, and where the system
 falls short the binding constraint is measurable and external to the memory.
 
+\subsection{ChurnBench: a parametric stress test that falsifies our own churn claim}\label{sec:churnbench}
+\S\ref{sec:churn}'s churn result uses one templated fact, updated up to 12 times amid
+distractors---a regime pre-registered to structurally favor supersession as soon as
+updates exceed $k$. ChurnBench generalizes it into a harness: a parametric generator
+sweeps updates-per-fact $U\in\{2,4,8,16,32\}$ over five keyed attributes
+(residence/job\_title/car/phone/gym), each updated via \emph{paraphrased}, first-person
+conversational statements (not templated serial-numbered lines) interleaved with
+distractor sessions; SubEM scoring; real \texttt{Tenet.ingest\_session} (no hand-tuned
+keys). Four arms at matched backbone (\texttt{qwen3.7-plus} reader,
+\texttt{bge-small} embedder): \tenet{}, RAG, and Mem0-/HippoRAG-v2-style reused verbatim
+from the \S\ref{sec:baselines} reproduction harness. Pre-registered gate: \tenet{}
+churn half-life (largest swept $U$ with accuracy $\geq90\%$) $\geq2\times$ the best
+baseline, CI-separated at $U{=}8$; $n{=}50$ questions/point, Wilson 95\% CIs.
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+$U$ & 2 & 4 & 8 & 16 & 32\\
+\midrule
+RAG & 96.0 & 100.0 & 100.0 & 78.0 & 30.0\\
+HippoRAG-v2-style & 100.0 & 100.0 & 100.0 & 78.0 & 30.0\\
+Mem0-style & 90.0 & 98.0 & 100.0 & 100.0 & \textbf{100.0}\\
+\tenet{} & 62.0 & 44.0 & 44.0 & 44.0 & 46.0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Result: falsified, not a partial miss.} Churn half-life: \tenet{}${<}2$, RAG
+$8$, HippoRAG-v2-style $8$, Mem0-style $32$. \tenet{} is the \emph{worst} of four arms at
+every tested $U$, including $U{=}2$ (its 95\% CI excludes every baseline at $U{\in}\{2,4,8\}$)---the
+opposite of \S\ref{sec:churn}'s result and of the pre-registered hypothesis. Diagnosing
+a failing case by inspecting \texttt{recall()} directly shows the correct current fact
+\emph{is} ranked first, but two or three raw turns for already-superseded values are
+still in the $k{=}10$ pool alongside it: the write-time stale-echo filter
+(\S\ref{sec:bec}, tuned for near-verbatim echoes) does not reliably retire a raw turn
+phrased differently from its distilled paraphrase (e.g.\ ``I got promoted, I'm now a
+principal analyst.'' vs.\ ``The user's job title is principal analyst.''---cosine falls
+under the filter's threshold). The reader then sees several structurally-identical,
+unordered conflicting statements with no recency cue and often answers from a stale one.
+Mem0-style---which \emph{deletes} superseded memories outright rather than retiring them
+into a still-recallable raw pool---has nothing to leak from and stays flat through
+$U{=}32$; naive RAG and HippoRAG-v2-style, with no consolidation at all, collapse
+$100\!\to\!30$ from $U{=}8\!\to\!32$ exactly as \S\ref{sec:churn} predicts. Diagnosed,
+not patched, in this work (\S\ref{sec:limits}); full curve, misses, and reproduction
+command in \texttt{docs/BENCHMARK.md} \S9.
+
 \section{Discussion}
 \textbf{Where the belief state wins.} Both MAB competencies reward what supersession
 provides: FactConsolidation directly (the store contains exactly one current value; no
@@ -573,7 +619,11 @@ full-scale (800 and $\sim$2{,}000 questions) with CIs. \textbf{Distillation qual
 free-form conversation, keys come from a small LLM distiller; a missed key match degrades
 supersession to ordinary storage (fail-soft, but the churn guarantee is only as good as
 the keying). \textbf{Scope}: single-user assistant memory; multi-writer stores and
-adversarial updates are untested.
+adversarial updates are untested. \textbf{Stale raw-turn leakage under natural
+conversational churn} (\S\ref{sec:churnbench}, measured, not hypothetical): with several
+attributes each updated many times via paraphrased statements, already-superseded raw
+turns can survive the stale-echo filter and outvote the correct current fact in the
+reader's context---the single largest, most concretely diagnosed gap in this paper.
 
 \section{Conclusion}
 Treating agent memory as a self-consistent belief state rather than a document index

@@ -354,6 +354,22 @@ thinking (~8K reasoning tokens/question) is what converts retrieval headroom, an
 outside our compute budget. The substrate transfers; the binding constraint is
 measurable and external to the memory.
 
+**4.8 ChurnBench — a parametric stress test that falsifies our own churn claim under
+natural updates.** §4.2's churn result uses one templated fact; ChurnBench sweeps
+updates-per-fact U∈{2,4,8,16,32} over 5 keyed attributes updated via *paraphrased*
+first-person conversation, n=50 questions/point, Wilson 95% CIs, real
+`Tenet.ingest_session` (no hand-tuned keys). Pre-registered gate: Tenet half-life
+(largest U with accuracy ≥90%) ≥2× the best baseline. **Result: falsified.** Tenet is
+the *worst* of four arms at every U (half-life <2, vs RAG 8, HippoRAG-v2-style 8,
+Mem0-style 32) — the opposite of the pre-registered hypothesis. Diagnosis: raw turns
+for already-superseded values survive the write-time stale-echo filter when phrased
+differently from their distilled paraphrase (cosine falls under the filter's
+near-verbatim threshold), so the reader sees several conflicting statements with no
+recency cue and often answers from a stale one — even when the correct fact is ranked
+first. Mem0-style (which *deletes* superseded memories outright, leaving nothing to
+leak) is immune to this failure mode and stays flat at 100% through U=32. Reported in
+full in Appendix / `docs/BENCHMARK.md` §9; not patched in this work.
+
 ## 5. Limitations
 
 - **Multi-session synthesis** is the one category where RAG still leads (42.9 vs 57.1).
@@ -368,6 +384,11 @@ measurable and external to the memory.
 - **Evaluation.** n=40, off-Qwen (gpt-4o / gpt-4o-mini readers, local embedder), one seed;
   reader stochasticity is ≈±5–7 pp, so the one-shot result is reported as *parity*, not a win.
   The shipped system uses Qwen Cloud; relative comparisons hold, as all systems share the reader.
+- **Stale raw-turn leakage under natural conversational churn** (§4.8): with several
+  attributes each updated many times via paraphrased (not templated) statements, the
+  write-time stale-echo filter can miss a raw turn whose wording diverges from its
+  distilled paraphrase, letting it reach the same recall window as the current fact and
+  sometimes outvote it. Real, measured, and unresolved in this work.
 
 ## 6. Conclusion
 
