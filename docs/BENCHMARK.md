@@ -372,6 +372,12 @@ questions/point (10 principals × 5 facts), Wilson 95% CIs, 0 API-error exclusio
 
 churn half-life: **tenet <2, rag 8, mem0 32, hipporag 8**.
 
+> **Outcome (read forward):** this falsification was diagnosed (below), fixed by a
+> read-time consistency rule (§9.1, → 98/92/82), and then **fully closed** by the
+> write-side embedding key-resolution (§13.1) — a fresh four-arm run scores Tenet
+> **100/100/100** at U=2/8/32, half-life 32, tied-for-first with Mem0-style and LLM-free
+> (§14). The section below is the original falsification, kept as the pre-registered record.
+
 **Ship gate: FALSIFIED, not a partial miss.** The pre-registered gate (Tenet half-life
 ≥2× best baseline, CI-separated at U=8) required Tenet to *lead*; instead Tenet is the
 *worst* arm at every tested U, including U=2 (barely any churn), with a 95% CI that

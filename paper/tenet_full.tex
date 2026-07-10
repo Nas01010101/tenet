@@ -42,9 +42,10 @@ already predict; and (v) \textbf{belief-anchored evidence expansion} spends spar
 on raw turns from the sessions the belief state already surfaced. The read path never
 calls an LLM. \tenet{} holds $100\%$ on this templated single-attribute churn primitive at
 every update level (\S\ref{sec:churn}); on the harsher \emph{paraphrased} multi-attribute
-ChurnBench (\S\ref{sec:churnbench}) a read-time consistency rule---defaulted on---lifts it
-from worst-arm to $98/92/82$ at $U{=}2/8/32$, though write-time delete-outright consolidation
-still leads at extreme churn. On
+ChurnBench (\S\ref{sec:churnbench}) it was initially \emph{falsified} (worst arm); a
+read-time consistency rule plus write-side embedding key-resolution---both defaulted
+on---recover it to $100/100/100$ at $U{=}2/8/32$ (half-life $32$), tying delete-outright
+Mem0-style for first while keeping LLM-free reads. On
 MemoryAgentBench \textsc{FactConsolidation} (ICLR~2026) it scores $86.5\%$ single-hop
 \ci{82.8}{89.5}---above the published \texttt{gpt-4o-mini}-tier state of the art
 ($78.0$) despite using a local 7B backbone---and ties the multi-hop state of the art
@@ -664,6 +665,20 @@ All regression gates pass with the fix defaulted on (7 deterministic suites;
 invariant---that arm never stores raw slices), so \texttt{recall()}'s
 \texttt{consistency\_threshold} now defaults to $0.70$ in shipped code.
 
+\paragraph{Full recovery via write-side key resolution.} The read-time fix attacks stale
+raw evidence \emph{after} it is stored; a complementary write-side fix removes it at the
+source. The embedding key-resolution of \S\ref{sec:limits} (a conversational update
+supersedes a same-subject belief whose attribute-key embeds within $0.78$ and whose text
+clears the $0.66$ floor) makes paraphrased updates actually collide at ingestion, so far
+fewer stale versions ever enter the raw pool. With both fixes on (the shipped default), a
+fresh four-arm run recovers \textsc{ChurnBench} to $100/100/100$ at $U{\in}\{2,8,32\}$
+(half-life $32$, $n{=}30$, Wilson CIs in \texttt{docs/BENCHMARK.md}~\S14): \tenet{} now
+\textbf{ties delete-outright Mem0-style for first} and dominates the retrieval baselines
+(RAG/HippoRAG-v2-style collapse to $30$ at $U{=}32$)---while keeping \textbf{LLM-free
+reads}, where Mem0-style pays an LLM add/update per write. The pre-registered falsification
+is thus fully closed, and by a mechanism the belief-state design predicts rather than a
+benchmark-specific patch.
+
 \subsection{Closing the write-path dependency: a local distiller}\label{sec:localdistill}
 Every result above distills with Qwen Cloud (\texttt{qwen3.7-plus}); the write path---turning
 a message into keyed JSON facts---is \tenet{}'s only remaining LLM dependency (reads are
@@ -796,8 +811,12 @@ under knowledge churn where retrieval memory structurally collapses, exceeds the
 published single-hop conflict-resolution SOTA at its reader tier on a weaker backbone,
 and is the only published-competitive system on MemoryAgentBench whose ingestion and
 reads are both LLM-free. The belief-state view also yields time-travel and principled
-forgetting for free. We hope knowledge churn becomes a standard axis for evaluating agent
-memory.
+forgetting for free. The LLM-free read path is also cheap at scale: with a resident
+embedding matrix (built once, appended incrementally, matmul at query time) recall stays
+$\sim$11\,ms at $10^5$ stored facts and extrapolates to $\sim$24\,ms at $10^6$ (versus
+$>1$\,s and $\sim$10\,s for a re-load-per-query implementation), so RAM---not
+latency---is the eventual bound (\texttt{docs/SCALE.md}). We hope knowledge churn becomes
+a standard axis for evaluating agent memory.
 
 \paragraph{Reproducibility.} All code, harnesses, official-prompt copies, cached
 ingestion artifacts, and per-question dumps: \texttt{github.com/Nas01010101/tenet}
