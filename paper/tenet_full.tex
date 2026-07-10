@@ -40,7 +40,11 @@ consistency rule} retires raw evidence that echoes a superseded belief; (iv) a
 \textbf{surprise-gated write policy} stores only observations the current state does not
 already predict; and (v) \textbf{belief-anchored evidence expansion} spends spare context
 on raw turns from the sessions the belief state already surfaced. The read path never
-calls an LLM. \tenet{} holds $100\%$ under churn at every update level; on
+calls an LLM. \tenet{} holds $100\%$ on this templated single-attribute churn primitive at
+every update level (\S\ref{sec:churn}); on the harsher \emph{paraphrased} multi-attribute
+ChurnBench (\S\ref{sec:churnbench}) a read-time consistency rule---defaulted on---lifts it
+from worst-arm to $98/92/82$ at $U{=}2/8/32$, though write-time delete-outright consolidation
+still leads at extreme churn. On
 MemoryAgentBench \textsc{FactConsolidation} (ICLR~2026) it scores $86.5\%$ single-hop
 \ci{82.8}{89.5}---above the published \texttt{gpt-4o-mini}-tier state of the art
 ($78.0$) despite using a local 7B backbone---and ties the multi-hop state of the art
@@ -81,7 +85,10 @@ current value, rather than at assembly time, where every read must re-derive it.
 \item We identify and name \textbf{knowledge churn}, a structural failure mode of
   retrieval-augmented memory, give a controlled benchmark exhibiting it (RAG:
   $100\%\!\to\!50\%$ as a fact is updated $2\!\to\!12\times$; reader-invariant), and show
-  a belief-state memory is immune by construction (\S\ref{sec:churn}).
+  a belief-state memory is immune on this templated primitive (\S\ref{sec:churn})---then
+  stress-test the claim on a harder paraphrased, multi-attribute variant (ChurnBench,
+  \S\ref{sec:churnbench}) that falsifies it and motivates the read-time consistency fix
+  (\S\ref{sec:churnfix}).
 \item We present \tenet{}: bi-temporal keyed supersession at ingestion, a
   \textbf{belief--evidence consistency rule} that retires stale raw evidence, a
   \textbf{surprise-gated write policy}, salience-decay forgetting, and budget-bounded
@@ -199,8 +206,9 @@ Each turn is distilled by a small LLM into atomic facts, each with a stable sema
 $\kappa=\textit{subject}{::}\textit{attribute}$ (e.g.\ \texttt{user::residence}), a
 salience $s\in[0,1]$, and an event time. The key is what makes supersession reliable:
 embedding similarity cannot separate a \emph{restated} fact from a \emph{value-changed}
-one (we measure a residence value change at cosine $0.99$, indistinguishable from a
-paraphrase), but a shared key can. Where the source text is already structured (as in
+one (we measure a value change at cosine $0.99$---\emph{higher} than a plain rephrasing of
+the same fact at $0.79$, so no similarity threshold separates a changed value from a
+restatement), but a shared key can. Where the source text is already structured (as in
 benchmark fact streams), keys are computed deterministically from the text with no LLM at
 all (\S\ref{sec:fc}).
 
@@ -409,8 +417,8 @@ accuracy-per-token of any system ($1.6\times$ RAG, $\sim$100$\times$ full-contex
 recall parity. Belief-anchored expansion, capped at RAG's own budget, brings one-shot
 accuracy to \emph{parity} ($57.5=57.5$) at fewer tokens. On a \texttt{gpt-4o-mini} reader
 the parity point edges ahead (60.0 vs 55.0); the per-token dominance holds across
-\texttt{gpt-4o-mini}, \texttt{gpt-4o}, and \texttt{claude-opus-4.8} readers
-($\approx$1.6--1.7$\times$). Given reader stochasticity of $\approx\pm5$--7\,pp at
+the \texttt{gpt-4o-mini} and \texttt{gpt-4o} readers we ran
+($\approx$1.6$\times$). Given reader stochasticity of $\approx\pm5$--7\,pp at
 $n{=}40$, we report one-shot accuracy as parity, not a win. The one category still behind
 RAG is multi-session synthesis (42.9 vs 57.1, up from 28.6; \S\ref{sec:limits}).
 

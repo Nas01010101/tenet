@@ -26,8 +26,10 @@ turns into atomic, keyed facts; (ii) maintains a **bi-temporal** record so a cha
 observations the model cannot already predict; and (v) closes the accuracy gap to raw
 retrieval with **belief-anchored evidence expansion** — spending spare context on
 query-relevant turns from the sessions the belief state already surfaced. Tenet holds
-**100% current-value accuracy across all churn levels** (where a strong RAG-memory falls to
-50%), matches strong RAG on retrieval recall (95–97.5%), and — with expansion — **matches its
+**100% current-value accuracy across all levels of the templated single-attribute churn
+primitive** (where a strong RAG-memory falls to 50%; on the harder *paraphrased*
+multi-attribute ChurnBench, §4.8, this primitive claim is falsified and recovered by a
+read-time consistency fix, §4.9), matches strong RAG on retrieval recall (95–97.5%), and — with expansion — **matches its
 one-shot answer accuracy at equal-or-lower token budget** (57.5% vs 57.5% under a gpt-4o
 reader) while retaining a high-efficiency operating point at **half the context** and the
 **best accuracy-per-token** of the systems we evaluate. Tenet thus traces an
@@ -67,7 +69,9 @@ take toward perception [Friston]; we bring it to agent memory.
    supersession, a **belief–evidence consistency rule** (retire raw evidence of superseded
    beliefs), and a **surprise-gated (predictive-coding) write policy**.
 3. We evaluate on LongMemEval_S and controlled tests: Tenet is **churn-robust (100% at all
-   levels)**, on par with RAG on recall (95%), **best-in-class on accuracy-per-token**, and —
+   levels of the templated churn primitive; §4.2)** — a claim we then falsify and partially
+   fix on a harder paraphrased ChurnBench (§4.8–4.9) — on par with RAG on recall (95%),
+   **best-in-class on accuracy-per-token**, and —
    with belief-anchored evidence expansion — **at parity with strong RAG on one-shot accuracy
    at equal token budget**, closing a gap earlier belief-only compression left open.
 4. On the standardized **MemoryAgentBench FactConsolidation** benchmark, ingestion-time
@@ -151,8 +155,9 @@ keyed facts, and an **evidence layer** of raw turns. Reads never call an LLM.
 facts, each with a stable semantic key *κ = subject∷attribute* (e.g. `user∷residence`), a
 salience *s ∈ [0,1]*, and an event time. The key is what makes supersession reliable:
 embedding similarity cannot separate a *restated* fact from a *value-changed* one (we
-measure the residence value-change "14:20→09:45" at cosine 0.99, indistinguishable from a
-paraphrase), but a shared key can.
+measure a flight-time value-change "14:20→09:45" at cosine 0.99 — *higher* than a plain
+rephrasing of the same fact at 0.79, so no similarity threshold distinguishes a changed
+value from a restatement), but a shared key can.
 
 **3.2 Bi-temporal supersession.** Every memory carries event time (`valid_at`,
 `invalid_at`) and transaction time (`created_at`, `expired_at`). Storing a fact with key
@@ -284,7 +289,7 @@ RAG; retrieval memory is essential.)*
 
 The finding is **reader-robust**. On a cheaper `gpt-4o-mini` reader the parity point edges
 ahead (Tenet 60.0 vs RAG 55.0 QA at the same budgets); the efficiency point's per-token
-dominance holds across `gpt-4o-mini`, `gpt-4o`, and `claude-opus-4.8` readers (≈1.6–1.7×).
+dominance holds across the `gpt-4o-mini` and `gpt-4o` readers we ran (≈1.6×).
 
 **4.2 Knowledge churn (headline).** One fact updated *N* times amid distractors, k=6, 12
 principals/point:
@@ -345,7 +350,8 @@ and 20+ points above Mem0 (32.6), Zep (37.5) and MemGPT. Per sub-benchmark: Even
 (parity with 76), LME(S*) 46.3 vs 50.7, RULER MH-QA 45.0 vs 66 — the honest loss:
 Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
 narrative text. Together with §4.5, Tenet leads or ties the published field on two of
-MAB's four competencies while being the only system whose ingestion never calls an LLM.
+MAB's four competencies while being the only published memory framework in this comparison
+whose ingestion never calls an LLM (the naive-RAG control aside).
 
 **4.7 Case study — web-agent trajectory memory (LongMemEval-V2).** Adapting Tenet's
 ingestion to LME-V2's web-agent trajectory haystacks [Wu 2026] (DOM states, actions;
