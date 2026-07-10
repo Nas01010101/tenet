@@ -3,6 +3,8 @@
 Tenet is evaluated on the standard **LongMemEval_S** benchmark (500 questions,
 ~115k-token multi-session histories) plus controlled capability tests. Every number is
 **honest and reproducible** from `scripts/`. Where a strong baseline beats us, we say so.
+[`METHODOLOGY.md`](METHODOLOGY.md) audits *how* each number is measured and exactly what
+claim it licenses (with an adversarial defect list + severities).
 
 > **Protocol.** A `gpt-4o` reader (the reader Mem0/Zep report against) + local embedder
 > (`bge-small-en-v1.5`) + cheap `gpt-4o-mini` distiller, via OpenRouter. This validates the **architecture** (Tenet vs baselines under identical
@@ -94,9 +96,16 @@ families**, with accuracy-per-token ≈2× RAG at the efficiency point under eve
 (71.7–75.9 vs 36.0–38.3). **Multi-session — our documented weak spot — flips under all
 three strong readers** (RAG 50–62.5%, Tenet 75–87.5%): a stronger reader composes
 Tenet's compact belief items across sessions better than it sifts RAG's raw-turn pool,
-making §8's weakness a reader-tier-dependent finding. Harness caveat (applies equally
-to all readers): reader calls were batched 10-per-CLI-invocation with per-item
-isolation instructions rather than fully independent API calls.
+making §8's weakness a reader-tier-dependent finding. **Harness caveat — the load-bearing
+weakness of this table (applies equally to all three readers): reader calls were batched
+10-per-CLI-invocation.** A single context window holding 10 items means a reader *can*
+attend to another item's retrieved context while answering; "per-item isolation
+instructions" is a soft prompt-level mitigation, **not** true isolation (contrast §12/§13,
+which issue one independent API call per item and are unaffected). This is the strongest-
+looking result in the document resting on the most contaminable measurement — so it is
+reported as a **directional** pattern (6/6 ≥, CIs overlap at n=40), and the cross-reader
+generality claim should be treated as *suggestive until re-run with one call per item*.
+See [`METHODOLOGY.md`](METHODOLOGY.md) Defect 8.
 
 ## 3. Long-horizon knowledge churn — where memory structurally wins (`scripts/bench_horizon.py`)
 A fact updated N times over a long history, retrieval budget k=6, 15 distractors,
@@ -309,7 +318,11 @@ ablation: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b` → EventQA 56.5, ruler 
   step: session-diverse retrieval (guarantee coverage across distinct evidence sessions).
 - **The frontier is a knob, not free lunch.** Parity accuracy costs RAG-equal tokens; the
   1.6× per-token win is at the efficiency point, which trades ~5pp of raw accuracy. One
-  system spans both, but no single setting wins every axis at once.
+  system spans both, but no single setting wins every axis at once. (Reader tokens are
+  estimated as `chars/4`, not a real tokenizer; measured against tiktoken this *over*-counts
+  Tenet's distilled context (4.15 chars/tok) and *under*-counts RAG's raw turns (3.82) — i.e.
+  the estimate is **conservative against our own per-token claim** (true ratio ≈47% of RAG's
+  tokens vs the 51% reported). See [`METHODOLOGY.md`](METHODOLOGY.md) Defect 6.)
 - QA numbers are off-Qwen (gpt-4o / gpt-4o-mini readers), n=40, one seed; reader noise
   ≈±5–7pp, so the one-shot result is reported as *parity*, not a win. Shipped system uses Qwen
   Cloud (config flip). Churn result is reader-robust (identical on gpt-4o).
@@ -663,6 +676,125 @@ questions flipped, offsetting — a real reshuffle, not a no-op). Below the pre-
 multi-hop is reader-reasoning-bound** — hop composition, not retrieval pool
 construction, is the binding constraint on a clean store at this tier.
 
+## 12. LoCoMo-10 — the field's marketed long-conversation benchmark (measured 2026-07-10)
+
+LoCoMo (Maharana et al., ACL 2024) is the benchmark Mem0 markets **92.5** on, and the one
+Zep, MemMachine, EverMemOS and the Qwen team's NapMem (arXiv:2607.05794) report against —
+so we put Tenet on it to sit next to those names. 10 conversations, 1,540 non-adversarial
+questions across 4 categories (multi-hop / temporal / open-domain / single-hop; category 5
+adversarial is skipped, as every published result does). Harness `scripts/bench_locomo.py`
+mirrors §1's multi-session ingest: per conversation, distill each session into Tenet
+(dual-pool: distilled facts + dated raw turns), cache the store, answer over it.
+**n=500, category-stratified, seed 0, 0 API failures.**
+
+> **JUDGE CAVEAT — read before comparing.** Published LoCoMo numbers use a **gpt-4o-mini**
+> judge; we judge with **qwen3.7-plus** and cannot replicate their judge, so every number
+> here is **qwen-judged and NOT directly comparable to vendor gpt-4o-mini-judged numbers**
+> (our absolute scores are also depressed by a strict short-answer reader prompt + k=10).
+> The **within-harness** arm comparison (tenet vs rag, identical reader + judge) IS valid.
+> The reader here is also qwen3.7-plus, so this is a **same-family self-judge** — but two
+> facts contain it: (1) both arms share the identical judge, so any leniency cancels in the
+> tenet-vs-rag delta; (2) measured judge-family sensitivity is small — 30 real (question,
+> gold, prediction) triples judged by qwen3.7-plus vs a cross-family Gemini-3.5-Flash judge
+> (identical prompt) agreed **30/30 = 100%** (`METHODOLOGY.md` Defect 4). The caveat bounds
+> *absolute* comparability to vendors, not the within-harness verdict.
+
+QA accuracy (qwen-judged; reader qwen3.7-plus, k=10; Wilson 95% CIs):
+
+| category | TENET (ours) | RAG (baseline) |
+|---|---|---|
+| 1 · multi-hop | 21.7% [14.5, 31.2] | 21.7% [14.5, 31.2] |
+| 2 · temporal | 18.3% [12.0, 26.8] | **28.8% [21.0, 38.2]** |
+| 3 · open-domain | 12.9% [5.1, 28.9] | 9.7% [3.3, 24.9] |
+| 4 · single-hop | 46.2% [40.3, 52.1] | **51.6% [45.7, 57.5]** |
+| **OVERALL** | 33.8% [29.8, 38.1] | **38.8% [34.6, 43.1]** |
+
+**Honest within-harness result: naive RAG beats Tenet on LoCoMo (paired McNemar p=0.031**;
+50 tenet-only-right vs 75 rag-only-right of 125 discordant pairs). The lead is concentrated
+in **temporal** (9 vs 20 discordant) and **single-hop** (31 vs 46) — the verbatim-detail
+categories — and ties on multi-hop (9 vs 9). Mechanism, from the miss dump: Tenet's
+distillation *paraphrases away* the exact wording the answer key rewards (e.g. gold "To raise
+awareness and start conversations" → Tenet answers the generalized "To make a real impact";
+RAG surfaces the raw turn and matches). LoCoMo stresses **verbatim multi-session recall**, not
+the churn/supersession Tenet is built for (§3, §9) — so it plays to a raw-turn baseline's
+strength. This is a real limitation on this benchmark family, reported plainly (cf. §8).
+
+**Audit-corrected key — Δ = +0.0pp, by construction (a novel, precise data point).** We ran
+it against the community answer-key audit (github.com/dial481/locomo-audit, `errors.json`).
+On inspection **all 156 audit entries match the dataset and 0 change the gold answer** — the
+audit corrects **evidence citations / reasoning** (error types WRONG_CITATION 57,
+HALLUCINATION 33, TEMPORAL_ERROR 26, ATTRIBUTION_ERROR 24, …; `cited_evidence` →
+`correct_evidence`), while `golden_answer` is byte-identical to the original. So the
+"corrupt-key" issue is a **citation-grounding** problem, not an **answer** problem: it does
+**not** move LLM-judge QA accuracy (Δ=0.0pp on all 500 questions), and vendor QA-accuracy
+leaderboards — which grade only the answer — are unaffected by it. The audit *would* move an
+evidence-recall / citation-faithfulness metric, which those leaderboards don't report.
+
+Not escalated to the full 1,540: n=500 already gives a decisive paired result (p=0.031) and a
+mechanism confirmed in the misses; tripling the run would only tighten CIs, not change the
+verdict. mem0/hipporag arms were not run here (mem0's per-turn LLM ADD/UPDATE ingestion is
+thousands of calls over LoCoMo's long histories — add behind a flag if a mem0-comparable
+number is wanted).
+
+## 13. PersonaMem-v2 — the NapMem personalization benchmark, with a blind control (measured 2026-07-10)
+
+PersonaMem-v2 (Jiang et al., arXiv:2512.06688; `bowen-upenn/PersonaMem-v2`, CC-BY-4.0) is the
+NapMem/Qwen-team-adjacent LLM-personalization benchmark. We picked it as the *fair-fight*
+follow-up to LoCoMo (§12): a large slice (`updated=True`, ~21% — all `ask_to_forget`) are
+preference **retractions**, where a distractor encodes the STALE value — exactly the
+supersession regime Tenet is built for. Each item is a long implicit-persona chat history + a
+user message + a **4-way multiple-choice** set of candidate responses (1 correct + 3
+distractors). **Scoring is deterministic MC (pick the letter) — NO LLM judge, so no
+judge-comparability caveat** (contrast §12). `scripts/bench_persona.py`, n=485 over 20
+personas (seed 0), reader qwen3.7-plus, k=20 retrieval, 0 API failures.
+
+**The validity check is the BLIND control.** Before reading anything into the arm
+comparison, we ran a no-*retrieval* arm (reader sees only the profile line + question + 4
+options, zero retrieved turns). If blind ≈ the memory arms, the MC would be answerable
+without retrieved memory and the comparison meaningless. It is not (note: blind is a
+profile-plus-plausibility floor, above the 25% random floor — it isolates the value of
+*retrieval*, which is the variable the arms differ on):
+
+| segment (n) | BLIND (no *retrieved* memory · profile only) | TENET (ours) | RAG (baseline) |
+|---|---|---|---|
+| OVERALL (485) | **34.4% [30.3, 38.8]** | 50.5% [46.1, 54.9] | 50.9% [46.5, 55.4] |
+| updated=True · retraction (124) | 35.5% [27.6, 44.2] | 67.7% [59.1, 75.3] | **74.2% [65.8, 81.1]** |
+| updated=False · plain recall (361) | 34.1% [29.4, 39.1] | 44.6% [39.6, 49.8] | 42.9% [37.9, 48.1] |
+
+(4-way MC, random = 25%.) The blind arm is a **no-*retrieval* floor** (static profile line +
+option-plausibility), **not** a pure-random 25% floor — so it measures what *retrieved*
+memory adds, not what any memory adds. On that axis it is decisive: **retrieved memory is
+load-bearing — the retrieval arms beat blind by +16pp overall (non-overlapping CIs)**, and
+by +25-32pp on the hardest categories (anti-stereotypical, ask-to-forget). So the arm
+comparison is meaningful. The Tenet-vs-RAG result is a **separate** claim resting on the
+paired test alone: **no statistically detectable difference — Tenet 50.5% vs RAG 50.9%,
+McNemar p=0.92.** This is an *underpowered null, not proven equivalence*: at n=485 (~100
+discordant pairs) the test has 80% power only for a ~6pp gap (its minimum detectable
+effect), so a true difference below ~6pp is not excluded. The blind control does **not**
+bear on this tie — it only establishes that memory matters, which makes the (indistinguishable)
+comparison worth reporting. See [`METHODOLOGY.md`](METHODOLOGY.md) Defects 1–2.
+
+**The supersession hypothesis is NOT supported.** On the retraction regime where Tenet was
+supposed to win, RAG is if anything ahead (74.2 vs 67.7, McNemar p=0.15, ns). Two measured
+reasons: (1) ingestion-time **keyed supersession barely fires** on natural-language preference
+updates — mean superseded fraction **3.8%** across personas, because the distiller assigns
+different keys to the old vs new mention scattered across distant turns, so Tenet has no
+structural edge here; (2) an explicit "please forget X" instruction is best consumed
+**verbatim**, which favors the raw-turn baseline — the same mechanism that lost us LoCoMo
+(§12). Per-category the two trade blows (Tenet leads anti-stereotypical / health / neutral;
+RAG leads ask-to-forget / therapy / sensitive-info), netting the overall tie.
+
+**Protocol caveat (we repurposed the task).** The official PersonaMem eval feeds the **full**
+32k/128k conversation appended with the query ("append the user_query to the end of its chat
+history") — it is a *full-context reasoning* benchmark, not a retrieval one. We deliberately
+recast it as a **retrieval/compression** task (k=20 turns, ~1-2k tokens vs the full 32k) to
+ask our tenet-vs-rag question. So our absolute numbers are **not comparable** to the paper's
+(frontier LLMs 37-48%, their agentic memory 55%, all full-context); only the within-harness
+blind/tenet/rag comparison at a fixed retrieval budget is valid. Not escalated beyond n=485:
+the *absence of a detectable difference* is clear (p=0.92 — but a statistical tie with
+MDE ≈ 6pp, not proven equivalence; see above), and more personas won't turn a
+supersession-mechanism that fires 3.8% of the time into a win.
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
@@ -690,6 +822,8 @@ tenet bench results                           # table of past runs (from data/be
 | §6.1 paper-method arms | `python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --qpc 100` (raw script) |
 | §9 ChurnBench | `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5 --distractor-sessions 4 --k 10` |
 | §9.1 ChurnBench fix A/B | `python scripts/bench_churn_fix_ab.py --updates 2,8,32 --principals 10` (raw script) |
+| §12 LoCoMo-10 (qwen-judged) | `LLM_PROVIDER=qwen python scripts/bench_locomo.py --data <scratch>/locomo10.json --audit <scratch>/audit_errors.json --cache <scratch>/locomo_cache --sample 500 --seed 0` (raw script; data from snap-research/locomo + dial481/locomo-audit) |
+| §13 PersonaMem-v2 (MC + blind) | `LLM_PROVIDER=qwen python scripts/bench_persona.py --csv <scratch>/benchmark.csv --cache <scratch>/persona_cache --personas 20 --seed 0 --arms blind,tenet,rag` (raw script; data from bowen-upenn/PersonaMem-v2 benchmark/text/benchmark.csv) |
 
 `--provider` presets (keyless local paths): `local` (embeddings only), `ollama`
 (EMBED_PROVIDER=local + LLM_PROVIDER=ollama qwen2.5:7b — fully offline),
