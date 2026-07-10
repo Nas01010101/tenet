@@ -209,3 +209,17 @@ with a 2-page paper + full preprint in `paper/`.
 - [ ] (optional) blog/social post linked
 - [ ] (optional, for full "runs on Alibaba Cloud" credit) backend deployed to ECS/FC —
       see `docs/DEPLOY.md`
+
+## Devpost form draft
+Ready-to-paste content for every Devpost form field (tagline, inspiration,
+what-it-does, how-we-built-it, challenges, accomplishments, what's-next, built-with):
+[`docs/hackathon/DEVPOST.md`](DEVPOST.md).
+
+## Deploy status (checked 2026-07-10)
+Backend-on-Alibaba-Cloud (ECS/FC) is **not deployed** — `.env` has a working
+`DASHSCOPE_API_KEY` but no `ALIBABA_CLOUD_ACCESS_KEY_ID`/`_SECRET` (RAM AccessKey),
+which needs a human console step to generate. The "uses Alibaba Cloud services/APIs"
+proof requirement is satisfied independently of this (DashScope IS Alibaba Cloud Model
+Studio — see `docs/DEPLOY.md` "Current status"); only the optional deployed-backend
+credit is blocked. Deploy scripts for both ECS and Function Compute are ready to run the
+moment an AccessKey is available: `docs/DEPLOY.md`.

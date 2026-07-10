@@ -1,8 +1,32 @@
 # Deploying Tenet on Alibaba Cloud (mandatory Proof-of-Deployment)
 
+## Current status (checked 2026-07-10)
+**Not deployed — blocked on missing credentials, not on the deploy path itself.**
+`.env` has `DASHSCOPE_API_KEY` set (Qwen Cloud works fine) but
+`ALIBABA_CLOUD_ACCESS_KEY_ID` / `ALIBABA_CLOUD_ACCESS_KEY_SECRET` are both empty —
+there's no Alibaba Cloud RAM AccessKey on this machine, so there's nothing to
+authenticate an ECS/FC deploy with. Getting one is a ~2 min console step (see below) but
+requires a human with the Qwen Cloud/Alibaba Cloud account login, so it wasn't done
+autonomously. The rest of this doc, and Path A/B below, are ready to run the moment an
+AccessKey is dropped into `.env` — no code changes needed.
+
+**What's already satisfied without this:** the submission's "uses Alibaba Cloud
+services/APIs" proof does *not* require a deployed backend — DashScope (Qwen Cloud) IS
+Alibaba Cloud Model Studio, and every model/embedding call already hits
+`dashscope-intl.aliyuncs.com` (`src/tenet/config.py`, `src/tenet/memory.py`,
+`src/tenet/distill.py`). That checklist item is done regardless of ECS/FC deploy status.
+What's *not* satisfied without a deploy is the separate "backend running on Alibaba
+Cloud" (compute) credit — see the checklist at the bottom of this file.
+
 ## Credentials reality (what you actually need)
 - **To RUN Tenet: only `DASHSCOPE_API_KEY`.** Nothing else. The app never calls OSS
   unless you explicitly invoke `src/tenet/alicloud_oss.py`.
+- **Embeddings on a serverless deploy: use `EMBED_PROVIDER=qwen` (the shipped
+  default), not `local`.** `EMBED_PROVIDER=local` pulls in `sentence-transformers` +
+  a ~130MB model — fine on ECS (persistent disk), a bad fit for Function Compute's
+  read-only/ephemeral filesystem and cold-start budget. `.env.example` already ships
+  `EMBED_PROVIDER=qwen`, so no config change is needed for either deploy path;
+  `EMBED_PROVIDER=local` is only for the offline/zero-key demo.
 - **"Uses Alibaba Cloud services and APIs" proof — already satisfied.** Qwen Cloud /
   DashScope *is* Alibaba Cloud Model Studio; every model + embedding call in
   `src/tenet/config.py`, `src/tenet/memory.py`, `src/tenet/distill.py` hits

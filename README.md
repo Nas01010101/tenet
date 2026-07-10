@@ -17,6 +17,7 @@
 [![paper](https://img.shields.io/badge/paper-PDF-b31b1b.svg)](paper/tenet.pdf)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%2B-3776ab.svg?logo=python&logoColor=white)](#quickstart)
+[![PyPI](https://img.shields.io/badge/pypi-coming%20soon-yellow.svg?logo=pypi&logoColor=white)](pyproject.toml)
 [![Qwen Cloud](https://img.shields.io/badge/built%20on-Qwen%20Cloud-6a5acd.svg)](https://qwencloud-hackathon.devpost.com)
 [![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/tenet/mcp_server.py)
 [![stars](https://img.shields.io/github/stars/Nas01010101/tenet?style=flat&color=8b7cf8)](https://github.com/Nas01010101/tenet/stargazers)
@@ -46,6 +47,19 @@ text into atomic facts is the one judgment call that needs a model — see
 </div>
 
 ---
+
+## Results at a glance
+
+| benchmark | metric | Tenet | comparison | source |
+|---|---|---:|---:|---|
+| MemoryAgentBench FactConsolidation (ICLR 2026), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
+| Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
+| LongMemEval_S | accuracy per 1k reader tokens | **49.2** (best/token) | RAG 27.4 · full-context 0.5 | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
+| Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
+
+Honest weak spots (multi-session synthesis, multi-hop chaining) are reported, not
+hidden — full tables and reproduction commands: [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
 
 ## Memory reads shouldn't cost an LLM call
 
@@ -228,9 +242,13 @@ Tenet is a **frontier, not a point** — one `expand` knob trades tokens for acc
   belief-anchored evidence expansion closed the gap belief-only compression left open. On a
   `gpt-4o-mini` reader the parity point edges ahead (60.0 vs 55.0).
 - **Best accuracy-per-token** at the efficiency point (1.6× RAG at *half* its context) — and
-  **reader-robust** across `gpt-4o-mini` / `gpt-4o` / `claude-opus-4.8` (≈1.6–1.7×).
-- **Churn-robust:** 100% at every update level while RAG collapses to 50% — the collapse holds
-  under a gpt-4o reader, so it's *structural*, not reader weakness.
+  **reader-robust** across the `gpt-4o-mini` and `gpt-4o` readers we ran (≈1.6×).
+- **Churn-robust (templated primitive):** on the single-attribute churn primitive (§3,
+  `bench_horizon`) Tenet holds 100% at every update level while RAG collapses to 50% — the
+  collapse holds under a gpt-4o reader, so it's *structural*, not reader weakness. On the
+  harsher *paraphrased* [ChurnBench](docs/BENCHMARK.md#9-churnbench--parametric-high-churn-stress-test-measured-2026-07-10)
+  (§9), read-time consistency (now default-on) lifts Tenet from worst-arm to **98/92/82** at
+  U=2/8/32, with Mem0-style delete-outright consolidation still leading at extreme churn.
 - **Ablation:** the belief–evidence consistency rule alone lifts current-value accuracy 55%→100%.
 - **Honest:** the one category still behind RAG is multi-session synthesis (42.9 vs 57.1, up
   from 28.6). We report it. *(Eval off-Qwen, one seed, reader noise ≈±5–7pp; shipped system uses Qwen Cloud.)*
