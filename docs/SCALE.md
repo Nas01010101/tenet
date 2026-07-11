@@ -254,6 +254,12 @@ this judgment call rather than silently accepting it.
   thresholds, same behavior, just a faster way to find the candidates to check them
   against. `test_key_resolution.py` (deterministic, the hardened-`_TEXT_FLOOR=0.66`
   regression test from commit `9d37c33`) passes unchanged.
+- **Accuracy re-verified on the resident-index code (not just inferred).** The refactor
+  swaps `recall()`'s data source but leaves its selection algorithm byte-for-byte; to
+  confirm this held end-to-end, the LLM-based accuracy benchmarks were re-run against the
+  shipped code: **ChurnBench 100/100/100 at U=2/8/32 (half-life 32) and MAB FactConsolidation
+  SH-6k 90.0% (n=20)** — both byte-identical to their pre-refactor values. The 100× recall
+  speedup and the ingest fix cost zero accuracy.
 
 ## Findings from the original pass — resolved
 

@@ -751,6 +751,19 @@ graphs at ingestion. At equal accuracy this asymmetry compounds over an agent's 
 ingestion happens once per fact, reads happen forever, and \tenet{} prices both at
 embedding cost.
 
+\textbf{Ingestion-time consistency makes read-time conflict resolution redundant.} We
+tested this directly: adding CAR-style read-time \texttt{max(serial)} aggregation
+(\cite{freshness}'s trick, the current FactConsolidation SOTA mechanism) as an optional
+reader over \tenet{}'s pool changed nothing---FC multi-hop $15.0\to15.0$, LoCoMo
+$29.0\to28.0$ ($n{=}20/100$). Because supersession already keeps exactly one current value
+per key, there is rarely a duplicate-key group left for an aggregator to collapse; the work
+CAR does at every read, \tenet{} does once at write. This is the belief-state thesis stated
+as a null result: the aggregation step that other systems need is redundant when the store
+is self-consistent by construction. (Retraction is the converse---an explicit ``forget
+$X$'' that deletes without replacement is semantically distinct from value supersession; a
+tombstone op is implemented but stays opt-in, as removing a fact entirely hurt a
+multiple-choice benchmark that needs the retracted context to recognize the retraction.)
+
 \section{Limitations}\label{sec:limits}
 \textbf{Verbatim-recall benchmarks favor raw storage.} On LoCoMo-10 ($n{=}500$
 stratified, qwen-judged, same reader/judge both arms) naive RAG beats \tenet{}

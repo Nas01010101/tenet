@@ -146,19 +146,27 @@ the fair comparison.
   (reader-bound, not retrieval-bound); the vendor LongMemEval leaderboard on *absolute*
   accuracy (bge-small harness, not the memory design — our own RAG only reaches ~57% there).
 
-### Ranked improvement follow-ups (in-scope, COMPOSE with our store — NOTED, not implemented)
-Ordered by expected value / effort. Each targets a measured loss with a trick that layers on
-the existing store (does not disturb supersession):
-1. **CAR-style read-time `max(serial)` aggregation as an optional reader** over Tenet's pool
-   for FC-MH and LoCoMo verbatim cells. We already reproduce CAR; composing it as a reader
-   mode could lift multi-hop + verbatim without touching the write path. (Highest EV.)
-2. **Raw-turn-favored recall mode** for verbatim benchmarks (higher `expand`, raw-priority)
-   to close the LoCoMo gap where distillation paraphrases detail away.
-3. **Retraction / tombstone op** for `ask_to_forget` — a "forget X" that supersedes-to-nothing
-   (distinct from value-replacement key-resolution); targets the flat PersonaMem retraction
-   subset.
-4. **Hard-delete mode for extreme-churn keys** — an optional faster archival of superseded
-   facts; we already TIE Mem0-style, so low priority and it risks the `as_of` history win.
+### Improvement follow-ups — two implemented and measured (both kept OFF), two open
+The top two EV follow-ups were built (behind default-off flags) and measured; both are
+**honest negatives**, and the negatives are themselves informative:
+
+1. **CAR-style read-time `max(serial)` aggregation** (`src/tenet/aggregate.py`,
+   `TENET_AGG_READER`, default OFF) — **clean null**: FC-MH 15.0 → 15.0 (n=20), LoCoMo
+   29.0 → 28.0 (n=100). *Why:* Tenet's store is already conflict-free by construction —
+   ingestion-time supersession keeps one current value per key, so there is rarely a
+   duplicate-key group left for a read-time aggregator to collapse. Aggregation is
+   **redundant with the belief-state design**, not additive; LoCoMo's loss is verbatim
+   paraphrasing, which this does not touch. Kept OFF.
+2. **Retraction / tombstone op** (`MemoryCore.retract()`, `TENET_RETRACT`, default OFF) —
+   **measured regression** on the PersonaMem retraction subset: 67.7 → 50.8 (n=124, CIs
+   nearly disjoint). *Why:* removing a forgotten fact strips the context the 4-way MC
+   reader needs to recognize *that a retraction happened* vs. distractor options that
+   assume a prior value. A semantically-correct "delete with no replacement" is not what
+   this benchmark rewards. Deterministically correct (7 tests), kept OFF, flagged.
+
+Still open (not yet built): **raw-turn-favored recall mode** for the LoCoMo verbatim gap
+(higher `expand`, raw-priority), and **hard-delete for extreme-churn keys** (low priority —
+we already tie Mem0-style and it risks the `as_of` history win).
 
 ## What Tenet does NOT claim
 - Not SOTA on raw LongMemEval accuracy — agentmemory (96.2%), Mastra (94.9%), Mem0 (94.4%)
