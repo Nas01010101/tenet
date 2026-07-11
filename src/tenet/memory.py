@@ -78,6 +78,20 @@ else:
 # opts in.
 _AGG_READER_DEFAULT = os.environ.get("TENET_AGG_READER", "").strip().lower() in ("1", "true", "on", "yes")
 
+# Raw-turn-favored recall (docs/COMPARISON.md follow-up #2) — an OPTIONAL dual-pool
+# re-weighting for benchmarks where EXACT wording matters more than distilled
+# consistency (LoCoMo verbatim recall: RAG beats Tenet 38.8 vs 33.8 because
+# distillation paraphrases away the wording the answer key checks — docs/BENCHMARK.md
+# §12). Default split caps raw slices at k//2 of the initial top-k, facts filling the
+# rest; ON, raw slices get PRIORITY up to the full k budget (facts only fill what's
+# left) — combines follow-up #2's "(a) raise the raw-slice budget" and "(b) raw-
+# priority ordering" into one knob, since they're the same underlying change (a
+# higher raw cap IS raw-first ordering once the cap can reach k). Default OFF until
+# measured to help; TENET_RAW_RECALL=1 (or recall(..., raw_recall=True) per call)
+# opts in. Does not touch ranking (still relevance x decay) or which pool a memory
+# comes from — only how many raw-vs-fact slots the fixed k budget allocates.
+_RAW_RECALL_DEFAULT = os.environ.get("TENET_RAW_RECALL", "").strip().lower() in ("1", "true", "on", "yes")
+
 
 # --- Embedding-based key resolution (TENET_KEY_RESOLUTION) ------------------
 # The per-message distiller keys the SAME real-world attribute inconsistently
@@ -535,6 +549,7 @@ class MemoryCore:
         hops: int = 0,
         consistency_threshold: float | None = _CONSISTENCY_THRESHOLD_DEFAULT,
         agg_reader: bool = _AGG_READER_DEFAULT,
+        raw_recall: bool = _RAW_RECALL_DEFAULT,
     ) -> list[Memory]:
         """Most relevant memories, ranked by relevance × decay.
 
@@ -579,6 +594,15 @@ class MemoryCore:
         sees the final pool; a pure filter (drops entries, never reorders/rescopes
         the ones that survive) — does not touch the annotation-only ranking
         invariant.
+
+        `raw_recall` — OPTIONAL raw-turn-favored dual-pool split (docs/COMPARISON.md
+        follow-up #2, for LoCoMo-style verbatim-recall regimes): the default split
+        caps raw slices at k//2 of the initial top-k; ON, raw slices get PRIORITY up
+        to the full k budget instead. Default OFF (`_RAW_RECALL_DEFAULT`,
+        `TENET_RAW_RECALL=1` to opt in globally) — with it off this method is
+        byte-identical to before this parameter existed. Only changes pool
+        COMPOSITION (how many raw-vs-fact slots k allocates); still relevance x
+        decay ranked within each pool, same annotation-only invariant.
         """
         qv = self._embed(query)  # network call — kept outside the lock
         with self._lock:
@@ -653,12 +677,20 @@ class MemoryCore:
 
             raws = [(rel, row) for _rank, rel, row in scored
                     if row["kind"] == "raw" and _fresh(row)]
-            n_raw = min(len(raws), k // 2)
-            picked = facts[: k - n_raw] + raws[:n_raw]
+            if raw_recall:
+                # Raw-turn-favored split (docs/COMPARISON.md follow-up #2): raw
+                # slices may fill the WHOLE k budget, facts only get the leftover —
+                # the opposite priority of the default split below.
+                n_raw = min(len(raws), k)
+                picked = raws[:n_raw] + facts[: k - n_raw]
+                leftover_order = raws[n_raw:] + facts[k - n_raw:]
+            else:
+                n_raw = min(len(raws), k // 2)
+                picked = facts[: k - n_raw] + raws[:n_raw]
+                leftover_order = facts[k - n_raw:] + raws[n_raw:]
             if len(picked) < k:  # backfill from whatever remains, best rank first
-                leftover = facts[k - n_raw:] + raws[n_raw:]
-                leftover.sort(key=lambda x: x[0], reverse=True)
-                picked += leftover[: k - len(picked)]
+                leftover_order.sort(key=lambda x: x[0], reverse=True)
+                picked += leftover_order[: k - len(picked)]
 
             out: list[Memory] = []
             used = 0
