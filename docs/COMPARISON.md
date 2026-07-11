@@ -20,10 +20,12 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 | Bi-temporal (valid + txn time) | ✅ | ❌ (create ts only) | ✅ | ❌ | ❌ | ❌ |
 | Supersession / auto-invalidation | ✅ | partial (LLM update) | ✅ | agent-managed | ❌ (append) | ❌ (append) |
 | **Principled forgetting** | ✅ decay sweep | ❌ | ❌ | evict on overflow | ❌ | ❌ |
-| **World-model efficiency** (surprise-gated writes) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Surprise-gated writes** (bounded store) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | No LLM in read path | ✅ | ✅ | ✅ | ✅ (tools) | ✅ | ❌ (rerank) |
+| **Human-readable memory** (open & audit what it knows) | ✅ `get_all()` belief state | ❌ opaque vectors | ❌ graph nodes | ❌ state blocks | partial (notes) | ❌ |
+| **Mem0-compatible API** (`add`/`search`/`get_all`/`delete`) | ✅ | ✅ (native) | ❌ (graph API) | ❌ (runtime) | ❌ | ❌ |
 | MCP-native | ✅ | partial | ✅ | ❌ | ❌ | ❌ |
-| Graph infra required | ❌ (light) | ❌ (removed theirs) | ✅ (heavy writes) | ❌ | ❌ | ❌ |
+| **Infra to run** | **none (`pip`: sqlite+numpy)** | vector DB | **graph DB (Neo4j/FalkorDB)** | agent server + Postgres | service | service |
 | **Long-horizon churn tested** | ✅ (**100% at U=2/8/32**, tied-for-first with Mem0-style, dominates RAG/HippoRAG at U=32 — see head-to-head §A) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | LongMemEval_S | 57.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
@@ -37,10 +39,21 @@ design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc
   reads) but **lighter**: no knowledge graph. Mem0 *removed* its graph after finding it
   ran 3× slower / 2× tokens for a thin gain, so Tenet's vector+bi-temporal substrate is a
   deliberate, evidence-backed choice.
-- **Adds two things none of them have:** (1) **principled forgetting** (decay sweep +
-  surprise-gated writes — a bounded, self-pruning store, not append-forever), and
-  (2) a **world-model efficiency** framing (predictive-coding: store only what isn't
-  already predicted).
+- **Zep-without-the-graph-DB.** Zep/Graphiti needs a graph database (Neo4j / FalkorDB / Kuzu)
+  running to get bi-temporal correctness; Tenet gets the same temporal correctness from
+  `sqlite + numpy` — **zero infrastructure, `pip install`**. For most teams the operational
+  overhead of a graph DB *is* the deciding factor, and Tenet removes it.
+- **Human-readable memory — the thing none of the big three have.** Mem0 stores opaque vectors,
+  Zep stores graph nodes, Letta stores agent state blocks: in every case you cannot open a file
+  and read what the agent believes. Tenet's memory is `subject::attribute → value` with explicit
+  current/superseded status (`get_all()` / `list_beliefs()`) — directly auditable.
+- **Drop-in for Mem0 users:** a Mem0-compatible CRUD surface (`add`/`search`/`get_all`/`delete`,
+  optional `user_id` scoping) means Tenet slots in where Mem0 would, then adds the temporal
+  correctness Mem0's flat create-timestamp store lacks.
+- **Adds what none of them have:** **principled forgetting** (decay sweep + surprise-gated
+  writes — a bounded, self-pruning store, not append-forever), plus optional LLM-free
+  **staleness hints** (`tenet doubts` — learned P(still-valid) per attribute; annotation-only,
+  never re-ranks).
 - **Tests a regime none of them report:** long-horizon knowledge churn. On the harsher
   paraphrased, multi-attribute ChurnBench (`docs/BENCHMARK.md` §9/§14), current Tenet holds
   **100% at U=2/8/32** — tied-for-first with Mem0-style and dominating RAG/HippoRAG-v2 (which
@@ -195,6 +208,7 @@ the belief-state design that wins FactConsolidation.
 - Multi-session synthesis is the one category still behind RAG (43 vs 57; documented, `docs/BENCHMARK.md` §6).
 
 ## The one-line positioning
-> Zep's bi-temporal correctness + Mem0's lightweight vector substrate + **forgetting and
-> world-model efficiency neither has**, MCP-native — tuned for accuracy-per-token and
+> **Zep's bi-temporal correctness and Mem0's drop-in API — with zero infrastructure**
+> (`pip install`, sqlite+numpy, no graph DB), a **human-readable** belief state you can open and
+> audit, LLM-free reads, principled forgetting, and MCP-native — tuned for accuracy-per-token and
 > long-horizon robustness rather than one-shot leaderboard accuracy.

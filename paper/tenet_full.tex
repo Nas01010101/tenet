@@ -76,7 +76,7 @@ Boston'' and ``I live in Seattle'' are the \emph{same fact} with a \emph{changed
 both are just passages. We argue memory should instead be a \textbf{belief state}: a
 compact set of \emph{current} beliefs about the world, each with a temporal extent,
 updated by observation, kept internally consistent, and queryable across time. This is
-the stance world-model and predictive-coding accounts take toward
+the stance predictive-coding accounts take toward
 perception~\cite{friston}; we bring it to agent memory and pay particular attention to
 \emph{where} consistency is enforced: at ingestion, so the store never contains a stale
 current value, rather than at assembly time, where every read must re-derive it.
@@ -237,7 +237,7 @@ This single rule turns supersession from a fact-layer nicety into end-to-end cor
 it takes current-value accuracy from $55\%$ to $100\%$ (\S\ref{sec:ablation}).
 
 \subsection{Surprise-gated writes (predictive coding)}
-A world model stores \emph{prediction error}, not everything. On write, a raw observation
+Predictive coding stores \emph{prediction error}, not everything. On write, a raw observation
 $e$ is discarded if the store already predicts it, i.e.\ it is near-identical to an
 existing slice:
 \begin{equation}
@@ -256,7 +256,7 @@ identity facts never decay. Retrieval is a \textbf{dual pool}---beliefs for cons
 evidence for verbatim detail---guaranteeing each a share of the budget.
 
 \subsection{Fact dynamics: learning how facts change}\label{sec:dynamics}
-A belief state becomes a world model when it can predict its own drift. The
+A belief state gains a drift model when it can predict its own staleness. The
 bi-temporal ledger is a training set for exactly this: every superseded fact is an
 observed lifetime ($\texttt{valid\_at}\!\to\!\texttt{invalid\_at}$) and every current
 fact a right-censored one. Per key \emph{class} $c$ (the attribute part of
@@ -272,7 +272,7 @@ form, with no LLM. A second ledger statistic captures \emph{ripple}: the smoothe
 co-supersession probability $P(c' \text{ changes} \mid c \text{ changed})$; when a
 correlated key changes, the survival of its neighbors is discounted
 ($S \to S^{1+\gamma\,\text{bump}}$), so one observation updates beliefs about
-unobserved attributes---the defining world-model behavior. Both surface as a
+unobserved attributes---one observation updating beliefs about many keys. Both surface as a
 \emph{confidence} on every recalled fact and an $\textit{uncertain\_facts}()$ list
 the agent can use to re-verify with the user. Deliberately, confidence does
 \textbf{not} demote a fact's rank: a doubted fact is still the best known answer,

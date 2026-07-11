@@ -1,13 +1,13 @@
 """Neural fact-dynamics — NUMPY-ONLY inference for the GRU temporal-point-process world
 model trained by scripts/train_dynamics.py. No torch: the tenet package stays a pure
-sqlite+numpy dependency, so a trained world model ships as one .npz.
+sqlite+numpy dependency, so a trained drift model ships as one .npz.
 
 Selected at runtime via env TENET_DYNAMICS=neural (default stays the closed-form
 Dynamics in dynamics.py — this module changes NO default behaviour). It mirrors the
 Dynamics interface used by MemoryCore:
     p_valid(skey, age_s, now) -> P(fact still current) via Weibull survival
     expected_lifetime_days(skey)
-plus the world-model extras:
+plus the drift-model extras:
     predict_next_key(...)             -> ranked next key-classes (learned ripple)
     predict_next_value_embedding(skey)-> predicted 384d embedding of the next value
 
@@ -60,7 +60,7 @@ def build_from_ledger(rows, now: float, npz_path: str | None = None):
     """MemoryCore hook: build a NeuralDynamics bound to the ledger from sqlite rows with
     (skey, valid_at, embedding). Returns None on ANY failure (missing weights, dim
     mismatch, load error) so recall silently falls back to the closed-form model — the
-    world model must never break the read path. Weights path: TENET_NEURAL_NPZ env, else
+    drift model must never break the read path. Weights path: TENET_NEURAL_NPZ env, else
     <repo>/data/dynamics_neural.npz."""
     import os
     import sys
@@ -145,7 +145,7 @@ class NeuralDynamics:
         k = math.exp(float(np.clip(o[1], -3, 3)))
         return scale, k
 
-    # ---- low-level world-model queries ----
+    # ---- low-level drift-model queries ----
     def survival_hist(self, hist: list[dict], age: float, source: str | None = None,
                       unit: float | None = None) -> float:
         """S(age) for a key whose event history is `hist` (age in the SAME unit)."""

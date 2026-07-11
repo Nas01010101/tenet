@@ -23,7 +23,7 @@ flowchart TB
         MATMUL --> RANK["ranked memories\n(confidence = ANNOTATION ONLY,\nnever reorders)"]
     end
 
-    subgraph wm["world model (dynamics.py / dynamics_neural.py)"]
+    subgraph wm["fact-dynamics (dynamics.py / dynamics_neural.py)"]
         LEDGER --> FIT["fit per-key-class survival\n(closed-form Gamma-Lomax,\nor opt-in neural GRU-TPP)"]
         FIT --> CONF["p_valid(key, age) ->\nMemory.confidence\nuncertain_facts()"]
         CONF --> RANK
@@ -50,7 +50,7 @@ returns only currently-true facts (`expired_at IS NULL`). This is the mechanism 
 `time_travel` — implemented once in `memory.py:_rows_as_of`, exposed identically over the
 library, the CLI (`tenet recall --as-of`), and MCP (`time_travel(query, as_of)`).
 
-## The world-model layer — key equations
+## The fact-dynamics (drift) layer — key equations
 
 `dynamics.py` treats the ledger as a *training set for how facts change*: every
 superseded fact is an observed lifetime, every current fact a right-censored one. Per
@@ -83,7 +83,7 @@ default and requires no training step.
 change how a fact is *worded* once it's already been selected on its normal
 relevance-times-decay score.
 
-This was learned the hard way: the first version of the world-model integration
+This was learned the hard way: the first version of the fact-dynamics integration
 rank-demoted doubted facts (multiplying score by `p_valid`), and the controlled
 knowledge-churn benchmark — where memory is supposed to *dominate* naive RAG — collapsed
 from **100% → 33%**. A frequently-updated fact (e.g. `mood`, churned every couple of
@@ -105,8 +105,8 @@ and used only for hedging language, a doubt list, and UI markers. This ordering
 |---|---|
 | `core.py` | `Tenet` — the one interface: `ingest`/`ingest_session` (write), `recall` (read), passthroughs for `forget_sweep`/`uncertain_facts`/`stats`. |
 | `memory.py` | `MemoryCore` — the bi-temporal SQLite store: `store()` (supersession/dedup/surprise-gate), `recall()` (BLAS matmul + decay + dual-pool fact/raw selection + belief-anchored/associative expansion), `list_beliefs()` (UI), `forget_sweep()`. |
-| `dynamics.py` | Closed-form world model: Gamma-Lomax per-key-class survival + ripple, `p_valid()`, `uncertain_facts()`, `expected_lifetime_days()`. |
-| `dynamics_neural.py` | Opt-in GRU temporal-point-process world model — numpy-only inference from a trained `.npz`, no torch import at runtime. |
+| `dynamics.py` | Closed-form drift model: Gamma-Lomax per-key-class survival + ripple, `p_valid()`, `uncertain_facts()`, `expected_lifetime_days()`. |
+| `dynamics_neural.py` | Opt-in GRU temporal-point-process drift model — numpy-only inference from a trained `.npz`, no torch import at runtime. |
 | `distill.py` | Write-time LLM distillation (Qwen) — raw message → atomic facts with `subject::attribute` keys and salience. |
 | `agent.py` | `MemoryAgent` — recall → caveat low-confidence facts → answer (Qwen) → ingest what was said; session-start anticipatory-verification line from `uncertain_facts()`. |
 | `mcp_server.py` | MCP tools: `learn`, `remember`, `recall` (annotated with `p_valid`), `doubts`, `time_travel`, `forget_stale`, `memory_stats`. |

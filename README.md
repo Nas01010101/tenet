@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/brand/banner-dark.svg">
-  <img src="docs/brand/banner-light.svg" alt="Tenet — agent memory as a self-consistent world model" width="820">
+  <img src="docs/brand/banner-light.svg" alt="Tenet — bi-temporal belief memory for agents: temporal correctness without a graph database" width="820">
 </picture>
 
 <p>
@@ -48,6 +48,36 @@ text into atomic facts is the one judgment call that needs a model — see
 
 ---
 
+## Tenet vs Zep · Mem0 · Letta
+
+The 2026 agent-memory field splits by job: **Mem0** for per-user personalization, **Zep/Graphiti**
+for facts that change over time, **Letta** for self-managing long-horizon agents. Tenet targets
+Zep's job — *temporal correctness when facts change* — but removes its cost of entry.
+
+| | **Tenet** | Zep / Graphiti | Mem0 | Letta |
+|---|---|---|---|---|
+| Facts that change over time | ✅ bi-temporal supersession | ✅ bi-temporal graph | ❌ create-ts only | agent-managed |
+| **Infra to run it** | **`pip install` — sqlite + numpy** | graph DB (Neo4j / FalkorDB) | vector DB | agent server + Postgres |
+| Read path cost | **no LLM call** | no LLM call | no LLM call | an LLM call per op |
+| **Read what it knows?** | ✅ **plain belief state** (`get_all()`) | ❌ graph nodes | ❌ opaque vectors | ❌ state blocks |
+| Drop-in API | ✅ **Mem0-compatible** (`add`/`search`/`get_all`/`delete`) | graph API | `add`/`search`/… | full runtime |
+| Time-travel (`as_of`) | ✅ | ✅ | ❌ | ❌ |
+
+**The one-liner:** *Zep's temporal correctness, Mem0's drop-in API, and a belief state you can
+actually open and read — with zero infrastructure.* Every other temporal system here needs a
+database server running; Tenet is a library. And unlike vector or graph memory, what Tenet stores
+is **human-readable** — `subject::attribute → value`, current vs. superseded — so you can audit
+exactly what your agent believes.
+
+```python
+mem = Tenet()
+mem.add("I moved to Seattle", user_id="alex")     # Mem0-style, drop-in
+mem.search("where do I live?", user_id="alex")    # → [Seattle]  (no LLM call)
+mem.get_all(user_id="alex")                        # → readable belief state, not opaque vectors
+```
+
+Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](docs/COMPARISON.md).
+
 ## Results at a glance
 
 | benchmark | metric | Tenet | comparison | source |
@@ -76,7 +106,8 @@ LLM-agent memory is almost always **retrieval over a log of past turns**. That's
 abstraction for an agent modeling a *changing* world: as a fact is updated over a long
 interaction — **knowledge churn** — stale versions crowd the retrieval budget and the agent
 answers with an out-of-date value. **Tenet** reframes memory as a **self-consistent belief
-state** — a compact *world model of the user* — and stays correct where retrieval collapses.
+state** — the current, supersession-aware set of facts about the user — and stays correct where
+retrieval collapses.
 
 <div align="center">
 
@@ -104,12 +135,12 @@ Tenet's default-on read-time consistency reaches 98/92/82 at U=2/8/32 — falsif
 
 | | retrieval memory (RAG) | **Tenet** |
 |---|---|---|
-| abstraction | document index of turns | **belief state (world model)** |
+| abstraction | document index of turns | **bi-temporal belief state** |
 | a changed fact | two similar passages | **superseded** (bi-temporal, history kept) |
 | stale evidence | retrieved forever | **retired** (belief–evidence consistency) |
 | write policy | store everything | **surprise-gated** (predictive coding) |
 | forgetting | none (grows forever) | salience-decay sweep |
-| fact drift | unmodeled | **learned hazards** — P(still valid) per attribute, `tenet doubts` |
+| fact drift | unmodeled | **staleness hints** — learned P(still-valid) per attribute, `tenet doubts` |
 | queryable across time | no | **time-travel** (`recall(as_of=t)`) |
 | multi-hop bridging | fixed-depth *k*, or none | **adaptive `navigate()`** — deepens hops only while new evidence clears a relevance-gain gate, LLM-free |
 | read path | — | **no LLM call** |
@@ -343,7 +374,7 @@ docs/ BENCHMARK.md COMPARISON.md DESIGN.md DEPLOY.md  architecture.svg horizon.s
 ## Citation
 ```bibtex
 @misc{tenet2026,
-  title  = {Tenet: Agent Memory as a Self-Consistent World Model},
+  title  = {Tenet: Agent Memory as a Self-Consistent Belief State},
   author = {Anas},
   year   = {2026},
   note   = {Global AI Hackathon with Qwen Cloud, Track 1},

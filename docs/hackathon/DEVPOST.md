@@ -62,10 +62,10 @@ Qwen/OpenRouter/Ollama by env var with zero code change:
 - **`qwen3.6-flash`** — write-time distillation of raw messages into atomic
   `subject::attribute` facts (`src/tenet/distill.py`).
 - **`qwen3.7-plus`** — the assistant's reader (`src/tenet/agent.py`).
-- **MCP server** exposing the full bi-temporal + world-model surface, not just
-  store/recall — including `doubts` (world-model uncertainty table) and `time_travel`
+- **MCP server** exposing the full bi-temporal surface, not just store/recall —
+  including `doubts` (a staleness/confidence table over current facts) and `time_travel`
   (bi-temporal read as of an arbitrary past instant) — `src/tenet/mcp_server.py`.
-- **A learned world model, not a heuristic.** `dynamics.py` fits a closed-form
+- **A learned drift model, not a heuristic.** `dynamics.py` fits a closed-form
   Gamma-Lomax survival model *per key class* from the ledger's own supersession
   history (no hardcoded half-lives), plus a ripple term for correlated fact change.
 - **Our own RTX-trained LoRA distiller**, for a fully local, air-gapped stack. Beyond

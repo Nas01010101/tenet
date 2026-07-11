@@ -127,14 +127,14 @@ retrieval budget, RAG's top-k can't hold them all and the reader picks a wrong (
 value; Tenet's bi-temporal supersession keeps exactly **one** current value regardless of
 how many times the fact changed. This is the long-term-memory regime RAG cannot scale to.
 
-## 4. Knowledge-update + the world-model mechanisms (`scripts/bench_knowledge_update.py`)
+## 4. Knowledge-update + the fact-dynamics mechanisms (`scripts/bench_knowledge_update.py`)
 The first version of this test *refuted* the naive design (55% correct, 45% stale-leak vs
 RAG 95%): the hybrid raw-slice pool reintroduced values the fact layer had retired. The
-fix is a **world-model consistency rule** — the current facts are the belief state; a raw
+fix is a **belief–evidence consistency rule** — the current facts are the belief state; a raw
 slice echoing a *superseded* belief is stale evidence and is retired from current recall
 (`_STALE_ECHO`). That took Tenet 55% → **100%**, matching RAG (0% stale-leak).
 
-**World-model memory efficiency** — **surprise-gated writes** (predictive-coding
+**Surprise-gated write efficiency** — **surprise-gated writes** (predictive-coding
 principle): an observation the store already predicts (cosine ≥ 0.97) carries no
 information and isn't stored. Measured: **15% of turns dropped as redundant, no accuracy
 loss.** RAG stores everything.
