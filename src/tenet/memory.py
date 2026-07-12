@@ -78,6 +78,20 @@ else:
 # opts in.
 _AGG_READER_DEFAULT = os.environ.get("TENET_AGG_READER", "").strip().lower() in ("1", "true", "on", "yes")
 
+# Raw-turn-favored recall (docs/COMPARISON.md follow-up #2) — an OPTIONAL dual-pool
+# re-weighting for benchmarks where EXACT wording matters more than distilled
+# consistency (LoCoMo verbatim recall: RAG beats Tenet 38.8 vs 33.8 because
+# distillation paraphrases away the wording the answer key checks — docs/BENCHMARK.md
+# §12). Default split caps raw slices at k//2 of the initial top-k, facts filling the
+# rest; ON, raw slices get PRIORITY up to the full k budget (facts only fill what's
+# left) — combines follow-up #2's "(a) raise the raw-slice budget" and "(b) raw-
+# priority ordering" into one knob, since they're the same underlying change (a
+# higher raw cap IS raw-first ordering once the cap can reach k). Default OFF until
+# measured to help; TENET_RAW_RECALL=1 (or recall(..., raw_recall=True) per call)
+# opts in. Does not touch ranking (still relevance x decay) or which pool a memory
+# comes from — only how many raw-vs-fact slots the fixed k budget allocates.
+_RAW_RECALL_DEFAULT = os.environ.get("TENET_RAW_RECALL", "").strip().lower() in ("1", "true", "on", "yes")
+
 
 # --- Embedding-based key resolution (TENET_KEY_RESOLUTION) ------------------
 # The per-message distiller keys the SAME real-world attribute inconsistently
@@ -360,7 +374,7 @@ class MemoryCore:
         idx = self._index
 
         if kind == "raw":
-            # World-model efficiency (predictive-coding principle): only store a raw
+            # Belief-store efficiency (predictive-coding principle): only store a raw
             # observation the memory does NOT already predict. If it's near-identical
             # to an existing raw slice (cosine >= surprise_gate), it carries no new
             # information — skip it. Shrinks the store without losing novel detail.
@@ -535,6 +549,7 @@ class MemoryCore:
         hops: int = 0,
         consistency_threshold: float | None = _CONSISTENCY_THRESHOLD_DEFAULT,
         agg_reader: bool = _AGG_READER_DEFAULT,
+        raw_recall: bool = _RAW_RECALL_DEFAULT,
     ) -> list[Memory]:
         """Most relevant memories, ranked by relevance × decay.
 
@@ -579,6 +594,15 @@ class MemoryCore:
         sees the final pool; a pure filter (drops entries, never reorders/rescopes
         the ones that survive) — does not touch the annotation-only ranking
         invariant.
+
+        `raw_recall` — OPTIONAL raw-turn-favored dual-pool split (docs/COMPARISON.md
+        follow-up #2, for LoCoMo-style verbatim-recall regimes): the default split
+        caps raw slices at k//2 of the initial top-k; ON, raw slices get PRIORITY up
+        to the full k budget instead. Default OFF (`_RAW_RECALL_DEFAULT`,
+        `TENET_RAW_RECALL=1` to opt in globally) — with it off this method is
+        byte-identical to before this parameter existed. Only changes pool
+        COMPOSITION (how many raw-vs-fact slots k allocates); still relevance x
+        decay ranked within each pool, same annotation-only invariant.
         """
         qv = self._embed(query)  # network call — kept outside the lock
         with self._lock:
@@ -592,7 +616,7 @@ class MemoryCore:
             # below, all now index-backed too), the matmul itself was always cheap
             # (docs/HARNESS.md §3: 2.6ms at 100k).
             rels = mat @ qv                               # cosine (both unit)
-            # World-model layer: annotate each keyed fact with the LEARNED probability
+            # Drift model: annotate each keyed fact with the LEARNED probability
             # it is still the current truth (dynamics.py — per-key-class survival
             # fitted on this store's own supersession history). Deliberately NOT a
             # rank discount: a doubted fact is still the best known answer, and
@@ -618,7 +642,7 @@ class MemoryCore:
             ]
             scored.sort(key=lambda x: x[0], reverse=True)
 
-            # World-model consistency: the current facts are the belief state. A raw
+            # Belief-store consistency: the current facts are the belief state. A raw
             # slice that echoes a SUPERSEDED belief (e.g. "I moved to Boston" after the
             # user moved on) is stale evidence — retire it from current recall so it
             # can't reintroduce an outdated value. (Only for current recall, not as_of.)
@@ -653,12 +677,20 @@ class MemoryCore:
 
             raws = [(rel, row) for _rank, rel, row in scored
                     if row["kind"] == "raw" and _fresh(row)]
-            n_raw = min(len(raws), k // 2)
-            picked = facts[: k - n_raw] + raws[:n_raw]
+            if raw_recall:
+                # Raw-turn-favored split (docs/COMPARISON.md follow-up #2): raw
+                # slices may fill the WHOLE k budget, facts only get the leftover —
+                # the opposite priority of the default split below.
+                n_raw = min(len(raws), k)
+                picked = raws[:n_raw] + facts[: k - n_raw]
+                leftover_order = raws[n_raw:] + facts[k - n_raw:]
+            else:
+                n_raw = min(len(raws), k // 2)
+                picked = facts[: k - n_raw] + raws[:n_raw]
+                leftover_order = facts[k - n_raw:] + raws[n_raw:]
             if len(picked) < k:  # backfill from whatever remains, best rank first
-                leftover = facts[k - n_raw:] + raws[n_raw:]
-                leftover.sort(key=lambda x: x[0], reverse=True)
-                picked += leftover[: k - len(picked)]
+                leftover_order.sort(key=lambda x: x[0], reverse=True)
+                picked += leftover_order[: k - len(picked)]
 
             out: list[Memory] = []
             used = 0
@@ -745,15 +777,20 @@ class MemoryCore:
         return _navigate(self, query, k=k, max_hops=max_hops, tau_gain=tau_gain,
                           char_budget=char_budget)
 
-    # ---- fact dynamics (the world-model layer) -----------------------------
+    # ---- fact dynamics (staleness/confidence hints) -------------------------
     def _dynamics(self):
         """Learned lifetime model, refit lazily from the ledger when it changed.
 
-        Default is the closed-form Gamma-exponential Dynamics (dynamics.py). Set env
-        TENET_DYNAMICS=neural (+ TENET_NEURAL_NPZ=<path>) to swap in the trained GRU
-        world model (dynamics_neural.py, numpy-only). The neural path needs per-event
-        value embeddings, so it binds the ledger's stored embeddings — use it with the
-        bge-small local embedder it was trained on (EMBED_PROVIDER=local, 384d)."""
+        Default is the closed-form Gamma-exponential survival model (dynamics.py,
+        numpy-only, no LLM) — per-key-class hazard rates fitted from this store's
+        own supersession history, used to flag which current facts are probably
+        stale and worth re-confirming (`uncertain_facts()`). Set env
+        TENET_DYNAMICS=neural (+ TENET_NEURAL_NPZ=<path>) to swap in the trained
+        drift model (dynamics_neural.py, numpy-only inference — opt-in, default
+        off, see paper/tenet.md for the measured NLL/calibration results). The
+        neural path needs per-event value embeddings, so it binds the ledger's
+        stored embeddings — use it with the bge-small local embedder it was
+        trained on (EMBED_PROVIDER=local, 384d)."""
         if self._dyn is not None and not self._dyn_dirty:
             return self._dyn
         # Index-backed (docs/SCALE.md) — was its own full-table SELECT on every
@@ -768,7 +805,7 @@ class MemoryCore:
             rows = []
         nd = None
         if os.environ.get("TENET_DYNAMICS", "").lower() == "neural":
-            from .dynamics_neural import build_from_ledger  # numpy-only world model
+            from .dynamics_neural import build_from_ledger  # numpy-only drift model
             nd = build_from_ledger(rows, now=self._now())   # None on any failure
         self._dyn = nd if nd is not None else Dynamics.fit(rows, now=self._now())
         self._dyn_dirty = False

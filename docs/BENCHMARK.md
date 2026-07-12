@@ -109,6 +109,25 @@ not treated as load-bearing. Artifacts: `docs/lme_multireader_results.json`,
 `docs/lme_unbatched_*.jsonl`. See [`METHODOLOGY.md`](METHODOLOGY.md) Defect 8 (now
 resolved by re-measurement).
 
+**Definitive on-Qwen result (n=100, `qwen3.7-plus` reader, fully Qwen Cloud, 2026-07-12).**
+The load-bearing LongMemEval number: run entirely on the shipped product stack (Qwen Cloud
+embedder + reader over REST — no local model, no off-Qwen reader), n=100, parity operating
+point, one call per item. Raw: `docs/lme_qwen_n100_result.txt`.
+
+| metric | RAG | **Tenet** |
+|---|---:|---:|
+| QA accuracy | 79.0% | **81.0%** |
+| recall@10 | 98.0% | **100.0%** |
+| acc / 1k reader tokens | 41.1 | **42.4** |
+| context vs full history | — | **−98.5%** (7.6k vs 506k chars) |
+
+By question type (QA, RAG/Tenet): **multi-session 54.2 / 75.0** (Tenet wins — the old weakness
+*flips* on a capable reader), **temporal-reasoning 73.3 / 80.0** (Tenet wins), single-session-user
+100 / 100, single-session-assistant 100 / 90.9, knowledge-update 100 / 76.5 (RAG wins this cell),
+single-session-preference 50 / 50 (n=4, tie). **Tenet ≥ RAG overall (81.0 vs 79.0) at 100% recall
+and 1/66th the context** — this is the number to compare against the field's reader-matched
+results, and it retires the "57.5%" as the weak-reader artifact it always was.
+
 ## 3. Long-horizon knowledge churn — where memory structurally wins (`scripts/bench_horizon.py`)
 A fact updated N times over a long history, retrieval budget k=6, 15 distractors,
 12 independent principals per point:
@@ -127,14 +146,14 @@ retrieval budget, RAG's top-k can't hold them all and the reader picks a wrong (
 value; Tenet's bi-temporal supersession keeps exactly **one** current value regardless of
 how many times the fact changed. This is the long-term-memory regime RAG cannot scale to.
 
-## 4. Knowledge-update + the world-model mechanisms (`scripts/bench_knowledge_update.py`)
+## 4. Knowledge-update + the fact-dynamics mechanisms (`scripts/bench_knowledge_update.py`)
 The first version of this test *refuted* the naive design (55% correct, 45% stale-leak vs
 RAG 95%): the hybrid raw-slice pool reintroduced values the fact layer had retired. The
-fix is a **world-model consistency rule** — the current facts are the belief state; a raw
+fix is a **belief–evidence consistency rule** — the current facts are the belief state; a raw
 slice echoing a *superseded* belief is stale evidence and is retired from current recall
 (`_STALE_ECHO`). That took Tenet 55% → **100%**, matching RAG (0% stale-leak).
 
-**World-model memory efficiency** — **surprise-gated writes** (predictive-coding
+**Surprise-gated write efficiency** — **surprise-gated writes** (predictive-coding
 principle): an observation the store already predicts (cosine ≥ 0.97) carries no
 information and isn't stored. Measured: **15% of turns dropped as redundant, no accuracy
 loss.** RAG stores everything.

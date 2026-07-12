@@ -20,16 +20,21 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 | Bi-temporal (valid + txn time) | ✅ | ❌ (create ts only) | ✅ | ❌ | ❌ | ❌ |
 | Supersession / auto-invalidation | ✅ | partial (LLM update) | ✅ | agent-managed | ❌ (append) | ❌ (append) |
 | **Principled forgetting** | ✅ decay sweep | ❌ | ❌ | evict on overflow | ❌ | ❌ |
-| **World-model efficiency** (surprise-gated writes) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Surprise-gated writes** (bounded store) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | No LLM in read path | ✅ | ✅ | ✅ | ✅ (tools) | ✅ | ❌ (rerank) |
+| **Human-readable memory** (open & audit what it knows) | ✅ `get_all()` belief state | ❌ opaque vectors | ❌ graph nodes | ❌ state blocks | partial (notes) | ❌ |
+| **Mem0-compatible API** (`add`/`search`/`get_all`/`delete`) | ✅ | ✅ (native) | ❌ (graph API) | ❌ (runtime) | ❌ | ❌ |
 | MCP-native | ✅ | partial | ✅ | ❌ | ❌ | ❌ |
-| Graph infra required | ❌ (light) | ❌ (removed theirs) | ✅ (heavy writes) | ❌ | ❌ | ❌ |
+| **Infra to run** | **none (`pip`: sqlite+numpy)** | vector DB | **graph DB (Neo4j/FalkorDB)** | agent server + Postgres | service | service |
 | **Long-horizon churn tested** | ✅ (**100% at U=2/8/32**, tied-for-first with Mem0-style, dominates RAG/HippoRAG at U=32 — see head-to-head §A) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| LongMemEval_S | 57.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
+| LongMemEval_S | **81.0%**¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
 
-¹ gpt-4o reader + bge-small embedder, parity operating point; our RAG baseline scores 57.5%
-on the same setup, so absolute numbers reflect our light embedder/harness, not the memory
+¹ **81.0%** = `qwen3.7-plus` reader (the shipped Qwen-Cloud stack), n=100, ≥ matched RAG (79.0%),
+100% recall@10, 98.5% less context than full — `docs/lme_qwen_n100_result.txt`. The older
+**57.5%** figure was a *deliberately weak-reader* efficiency operating point (gpt-4o reader +
+bge-small embedder), where our own RAG baseline also scores 57.5% — i.e. absolute numbers there
+reflect the light embedder/harness, not the memory
 design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc/token).
 
 ## Where Tenet sits
@@ -37,10 +42,21 @@ design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc
   reads) but **lighter**: no knowledge graph. Mem0 *removed* its graph after finding it
   ran 3× slower / 2× tokens for a thin gain, so Tenet's vector+bi-temporal substrate is a
   deliberate, evidence-backed choice.
-- **Adds two things none of them have:** (1) **principled forgetting** (decay sweep +
-  surprise-gated writes — a bounded, self-pruning store, not append-forever), and
-  (2) a **world-model efficiency** framing (predictive-coding: store only what isn't
-  already predicted).
+- **Zep-without-the-graph-DB.** Zep/Graphiti needs a graph database (Neo4j / FalkorDB / Kuzu)
+  running to get bi-temporal correctness; Tenet gets the same temporal correctness from
+  `sqlite + numpy` — **zero infrastructure, `pip install`**. For most teams the operational
+  overhead of a graph DB *is* the deciding factor, and Tenet removes it.
+- **Human-readable memory — the thing none of the big three have.** Mem0 stores opaque vectors,
+  Zep stores graph nodes, Letta stores agent state blocks: in every case you cannot open a file
+  and read what the agent believes. Tenet's memory is `subject::attribute → value` with explicit
+  current/superseded status (`get_all()` / `list_beliefs()`) — directly auditable.
+- **Drop-in for Mem0 users:** a Mem0-compatible CRUD surface (`add`/`search`/`get_all`/`delete`,
+  optional `user_id` scoping) means Tenet slots in where Mem0 would, then adds the temporal
+  correctness Mem0's flat create-timestamp store lacks.
+- **Adds what none of them have:** **principled forgetting** (decay sweep + surprise-gated
+  writes — a bounded, self-pruning store, not append-forever), plus optional LLM-free
+  **staleness hints** (`tenet doubts` — learned P(still-valid) per attribute; annotation-only,
+  never re-ranks).
 - **Tests a regime none of them report:** long-horizon knowledge churn. On the harsher
   paraphrased, multi-attribute ChurnBench (`docs/BENCHMARK.md` §9/§14), current Tenet holds
   **100% at U=2/8/32** — tied-for-first with Mem0-style and dominating RAG/HippoRAG-v2 (which
@@ -142,12 +158,24 @@ the fair comparison.
   **LLM-free reads**. Plus capabilities none report: bi-temporal `as_of`, principled
   forgetting, per-token efficiency.
 - **Tenet TIES:** PersonaMem-v2 overall (≈ RAG); ChurnBench (= Mem0-style).
-- **Tenet LOSES:** LoCoMo verbatim recall (RAG > Tenet, p=0.031); multi-hop reasoning
-  (reader-bound, not retrieval-bound); the vendor LongMemEval leaderboard on *absolute*
-  accuracy (bge-small harness, not the memory design — our own RAG only reaches ~57% there).
+- **Tenet LOSES:** LoCoMo verbatim recall (RAG > Tenet, p=0.031); multi-hop chaining; the
+  vendor LongMemEval leaderboard on *absolute* accuracy under a weak reader.
 
-### Improvement follow-ups — two implemented and measured (both kept OFF), two open
-The top two EV follow-ups were built (behind default-off flags) and measured; both are
+**On the two losses — where the ceiling actually is (measured, not spun):**
+- **Multi-hop is a *reader* ceiling, not a memory one.** We measured it: `navigate()` already
+  retrieves the facts a multi-hop question needs across hops (retrieval pool is not the
+  bottleneck — BENCHMARK.md §684); the loss is the *reader composing* those facts into a chained
+  answer. A graph (Zep's approach) does not fix a reader-composition limit, and it would cost the
+  graph-DB infra Tenet deliberately avoids — so we do **not** build one. A stronger reader closes
+  this; an opt-in `reason`/decompose mode (Self-Ask over the belief state) is the in-scope lever.
+- **The "~57%" absolute is a *weak-reader* artifact, not the memory design.** Recall@10 is already
+  **97.5%** — the right facts are in the context. With a **frontier reader** (gpt-5.5 / Gemini-3.5,
+  clean un-batched), Tenet reaches **75–77.5%** (≥ matched RAG), and the 57.5% is a deliberately
+  weak-reader *efficiency* operating point, not Tenet's accuracy ceiling. See BENCHMARK.md
+  §"Reader-generality".
+
+### Improvement follow-ups — three implemented and measured (all kept OFF), one open
+The top three EV follow-ups were built (behind default-off flags) and measured; all are
 **honest negatives**, and the negatives are themselves informative:
 
 1. **CAR-style read-time `max(serial)` aggregation** (`src/tenet/aggregate.py`,
@@ -164,9 +192,26 @@ The top two EV follow-ups were built (behind default-off flags) and measured; bo
    assume a prior value. A semantically-correct "delete with no replacement" is not what
    this benchmark rewards. Deterministically correct (7 tests), kept OFF, flagged.
 
-Still open (not yet built): **raw-turn-favored recall mode** for the LoCoMo verbatim gap
-(higher `expand`, raw-priority), and **hard-delete for extreme-churn keys** (low priority —
-we already tie Mem0-style and it risks the `as_of` history win).
+3. **Raw-turn-favored recall mode** (`MemoryCore.recall(raw_recall=True)`, `TENET_RAW_RECALL`,
+   default OFF) — **measured regression** on LoCoMo, the one verbatim regime we lose. ON gives
+   the raw source-turn pool priority up to the full top-`k` budget (facts backfill the
+   remainder) instead of the default `k//2` cap. Result at n=100 (qwen reader, seed 0, only
+   the flag differs): overall 28.0 → 24.0, temporal 9.5 → **0.0** (collapsed), single-hop
+   40.0 → 38.2, multi-hop 16.7 → 11.1; paired McNemar OFF wins the discordant pairs 7–3
+   (p=0.34, not significant alone but every category points the same way). Per the stop-gate,
+   not escalated to n=500. *Why:* with a fixed `k`, forcing the shared pool raw-heavy
+   **displaces** the distiller's session/date-carrying facts rather than adding capacity —
+   sampled temporal misses under ON all returned "No information available." RAG's edge on
+   LoCoMo is not "more raw text" but an **unshared** pool that is *entirely* raw with the full
+   budget to itself; Tenet's shared belief+raw pool cannot replicate that structure by
+   re-weighting without giving up the evidence that was pulling weight. Deterministically
+   correct (5 tests), byte-identical default-OFF path, kept OFF, flagged.
+
+Still open (not yet built): **hard-delete for extreme-churn keys** (low priority — we already
+tie Mem0-style and it risks the `as_of` history win). The verbatim-recall gap is now
+characterized as a **structural** RAG advantage (unshared full-budget raw pool), not a
+tunable one — closing it would require a separate raw-only retrieval path, which trades away
+the belief-state design that wins FactConsolidation.
 
 ## What Tenet does NOT claim
 - Not SOTA on raw LongMemEval accuracy — agentmemory (96.2%), Mastra (94.9%), Mem0 (94.4%)
@@ -178,6 +223,7 @@ we already tie Mem0-style and it risks the `as_of` history win).
 - Multi-session synthesis is the one category still behind RAG (43 vs 57; documented, `docs/BENCHMARK.md` §6).
 
 ## The one-line positioning
-> Zep's bi-temporal correctness + Mem0's lightweight vector substrate + **forgetting and
-> world-model efficiency neither has**, MCP-native — tuned for accuracy-per-token and
+> **Zep's bi-temporal correctness and Mem0's drop-in API — with zero infrastructure**
+> (`pip install`, sqlite+numpy, no graph DB), a **human-readable** belief state you can open and
+> audit, LLM-free reads, principled forgetting, and MCP-native — tuned for accuracy-per-token and
 > long-horizon robustness rather than one-shot leaderboard accuracy.

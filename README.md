@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/brand/banner-dark.svg">
-  <img src="docs/brand/banner-light.svg" alt="Tenet — agent memory as a self-consistent world model" width="820">
+  <img src="docs/brand/banner-light.svg" alt="Tenet — bi-temporal belief memory for agents: temporal correctness without a graph database" width="820">
 </picture>
 
 <p>
@@ -48,6 +48,36 @@ text into atomic facts is the one judgment call that needs a model — see
 
 ---
 
+## Tenet vs Zep · Mem0 · Letta
+
+The 2026 agent-memory field splits by job: **Mem0** for per-user personalization, **Zep/Graphiti**
+for facts that change over time, **Letta** for self-managing long-horizon agents. Tenet targets
+Zep's job — *temporal correctness when facts change* — but removes its cost of entry.
+
+| | **Tenet** | Zep / Graphiti | Mem0 | Letta |
+|---|---|---|---|---|
+| Facts that change over time | ✅ bi-temporal supersession | ✅ bi-temporal graph | ❌ create-ts only | agent-managed |
+| **Infra to run it** | **`pip install` — sqlite + numpy** | graph DB (Neo4j / FalkorDB) | vector DB | agent server + Postgres |
+| Read path cost | **no LLM call** | no LLM call | no LLM call | an LLM call per op |
+| **Read what it knows?** | ✅ **plain belief state** (`get_all()`) | ❌ graph nodes | ❌ opaque vectors | ❌ state blocks |
+| Drop-in API | ✅ **Mem0-compatible** (`add`/`search`/`get_all`/`delete`) | graph API | `add`/`search`/… | full runtime |
+| Time-travel (`as_of`) | ✅ | ✅ | ❌ | ❌ |
+
+**The one-liner:** *Zep's temporal correctness, Mem0's drop-in API, and a belief state you can
+actually open and read — with zero infrastructure.* Every other temporal system here needs a
+database server running; Tenet is a library. And unlike vector or graph memory, what Tenet stores
+is **human-readable** — `subject::attribute → value`, current vs. superseded — so you can audit
+exactly what your agent believes.
+
+```python
+mem = Tenet()
+mem.add("I moved to Seattle", user_id="alex")     # Mem0-style, drop-in
+mem.search("where do I live?", user_id="alex")    # → [Seattle]  (no LLM call)
+mem.get_all(user_id="alex")                        # → readable belief state, not opaque vectors
+```
+
+Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](docs/COMPARISON.md).
+
 ## Results at a glance
 
 | benchmark | metric | Tenet | comparison | source |
@@ -55,7 +85,7 @@ text into atomic facts is the one judgment call that needs a model — see
 | MemoryAgentBench FactConsolidation (ICLR 2026), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
-| LongMemEval_S | accuracy per 1k reader tokens | **49.2** (best/token) | RAG 27.4 · full-context 0.5 | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
+| LongMemEval_S (n=100, `qwen3.7-plus` Qwen-Cloud reader) | QA accuracy | **81.0%** | ≥ matched RAG 79.0% · **100%** recall@10 · **98.5% less context** than full | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
 | Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
 
 Honest weak spots (multi-session synthesis, multi-hop chaining) are reported, not
@@ -72,11 +102,27 @@ that *does* need judgment (turning a raw message into atomic, keyed facts) happe
 answers correct as facts change — is deterministic bi-temporal bookkeeping; no model is in that
 loop either.
 
+That makes the read path *fast* — and it stays fast at scale:
+
+| system | read/retrieval latency | LLM in read path | infra to run |
+|---|---:|:---:|---|
+| **Tenet** | **~11 ms** (@100k facts, flat) | **no** | none — sqlite + numpy |
+| Zep / Graphiti | ~150–300 ms (graph search) | no | graph DB (Neo4j / FalkorDB) |
+| Mem0 | ~1.44 s p95 (base) | no | vector DB |
+| Letta | model-dependent (an LLM call per op) | yes | agent server + Postgres |
+
+<sub>Tenet's read is embedding + cosine + closed-form decay over a resident matrix — **flat ~9–12 ms
+from 1k to 100k facts** ([`docs/SCALE.md`](docs/SCALE.md)), ~100× faster than its own pre-resident-index
+baseline. Latency *scopes* differ across systems (all exclude the downstream reader LLM); competitor
+figures are each project's own published retrieval latency. The point isn't a benchmarked race — it's
+that temporal correctness here costs **no graph database and no inference call.**</sub>
+
 LLM-agent memory is almost always **retrieval over a log of past turns**. That's the wrong
 abstraction for an agent modeling a *changing* world: as a fact is updated over a long
 interaction — **knowledge churn** — stale versions crowd the retrieval budget and the agent
 answers with an out-of-date value. **Tenet** reframes memory as a **self-consistent belief
-state** — a compact *world model of the user* — and stays correct where retrieval collapses.
+state** — the current, supersession-aware set of facts about the user — and stays correct where
+retrieval collapses.
 
 <div align="center">
 
@@ -104,12 +150,12 @@ Tenet's default-on read-time consistency reaches 98/92/82 at U=2/8/32 — falsif
 
 | | retrieval memory (RAG) | **Tenet** |
 |---|---|---|
-| abstraction | document index of turns | **belief state (world model)** |
+| abstraction | document index of turns | **bi-temporal belief state** |
 | a changed fact | two similar passages | **superseded** (bi-temporal, history kept) |
 | stale evidence | retrieved forever | **retired** (belief–evidence consistency) |
 | write policy | store everything | **surprise-gated** (predictive coding) |
 | forgetting | none (grows forever) | salience-decay sweep |
-| fact drift | unmodeled | **learned hazards** — P(still valid) per attribute, `tenet doubts` |
+| fact drift | unmodeled | **staleness hints** — learned P(still-valid) per attribute, `tenet doubts` |
 | queryable across time | no | **time-travel** (`recall(as_of=t)`) |
 | multi-hop bridging | fixed-depth *k*, or none | **adaptive `navigate()`** — deepens hops only while new evidence clears a relevance-gain gate, LLM-free |
 | read path | — | **no LLM call** |
@@ -225,8 +271,28 @@ ollama create tenet-distiller-1.5b-v2 -f Modelfile   # Modelfile: FROM ./tenet-d
 
 ## Results
 
-LongMemEval_S (n=40, gpt-4o reader) — honest, reproducible; full detail in
-[`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+LongMemEval_S — honest, reproducible; full detail in [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+
+**Absolute accuracy tracks reader strength, not the memory — because retrieval is already
+saturated (recall@10 = 97.5–100%).** The right facts are in the context; a capable reader is what
+turns them into a right answer. On **Qwen Cloud's own reader** (`qwen3.7-plus`, the shipped
+product stack, fully cloud, n=100) Tenet reaches **81.0 %** — and frontier off-Qwen readers agree
+(clean, un-batched, one call per item):
+
+| reader | n | RAG | **Tenet** |
+|---|---:|---:|---:|
+| **`qwen3.7-plus`** (product · Qwen Cloud) | 100 | 79.0 | **81.0** |
+| **gpt-5.5** (frontier) | 40 | 75.0 | **77.5** |
+| **Gemini-3.5-flash** | 40 | 70.0 | **75.0** |
+| gpt-4o (the weak-reader efficiency point, below) | 40 | 57.5 | 57.5 |
+
+So with a capable reader Tenet reaches **~75–81 %, ≥ matched RAG at every reader**, at **100 %
+recall@10** and **98.5 % less context** than full history — and on the Qwen reader it *wins* the
+multi-session category (75.0 vs 54.2) and temporal reasoning (80.0 vs 73.3). The "57.5 %" you'll
+see below is a *deliberately weak-reader efficiency operating point*, **not** Tenet's accuracy
+ceiling; the reason our headline once looked lower than Mem0/Zep's 90 %+ was the eval
+reader/embedder, not the memory design. The table further down traces the accuracy↔token
+**frontier** under a fixed gpt-4o reader.
 
 > **Note:** the shipped product runs **entirely on Qwen Cloud** (`text-embedding-v4`,
 > `qwen3.6-flash`, `qwen3.7-plus`). `gpt-4o`/`gpt-4o-mini` appear below **only as frozen
@@ -343,7 +409,7 @@ docs/ BENCHMARK.md COMPARISON.md DESIGN.md DEPLOY.md  architecture.svg horizon.s
 ## Citation
 ```bibtex
 @misc{tenet2026,
-  title  = {Tenet: Agent Memory as a Self-Consistent World Model},
+  title  = {Tenet: Agent Memory as a Self-Consistent Belief State},
   author = {Anas},
   year   = {2026},
   note   = {Global AI Hackathon with Qwen Cloud, Track 1},

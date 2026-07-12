@@ -1,4 +1,4 @@
-<svg width="820" height="190" viewBox="0 0 820 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tenet — agent memory as a self-consistent world model">
+<svg width="820" height="190" viewBox="0 0 820 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tenet — agent memory as a self-consistent belief state">
 
   <!-- wordmark: TENET is a palindrome — mirror-symmetric around the N,
        the way a bi-temporal store reads the same forward and backward in time -->
@@ -22,5 +22,5 @@
 
   <text x="410" y="170" text-anchor="middle"
         font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-        font-size="15" letter-spacing="2" fill="#9a94b8">agent memory as a self-consistent world model</text>
+        font-size="15" letter-spacing="2" fill="#9a94b8">agent memory as a self-consistent belief state</text>
 </svg>

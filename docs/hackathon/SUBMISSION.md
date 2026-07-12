@@ -84,11 +84,11 @@ with a 2-page paper + full preprint in `paper/`.
   `subject::attribute` facts, `distill.py`), `qwen3.7-plus` (the assistant's reader,
   `agent.py`) — all through one fail-loud provider layer (`config.py`) that swaps
   Qwen/OpenRouter/Ollama by env var with zero code change.
-- **MCP server exposes the full bi-temporal + world-model surface**, not just
+- **MCP server exposes the full bi-temporal surface**, not just
   store/recall: `learn`, `remember`, `recall` (annotated with learned `p_valid`),
-  `doubts` (world-model uncertainty table), `time_travel` (bi-temporal read — recall as
+  `doubts` (staleness/confidence table), `time_travel` (bi-temporal read — recall as
   of an arbitrary past instant), `forget_stale`, `memory_stats` — `src/tenet/mcp_server.py`.
-- **A learned world model, not a heuristic**: `dynamics.py` fits a closed-form
+- **A learned drift model, not a heuristic**: `dynamics.py` fits a closed-form
   Gamma-Lomax survival model *per key class* from the ledger's own supersession history
   (no hardcoded half-lives), plus a ripple term for correlated fact change; an opt-in
   neural GRU temporal-point-process (`dynamics_neural.py`, numpy-only inference, no
@@ -178,13 +178,13 @@ with a 2-page paper + full preprint in `paper/`.
   `scripts/test_langgraph_store.py`.
 
 ### Presentation (15%)
-- **One-page architecture doc** with a Mermaid component diagram, the world-model
+- **One-page architecture doc** with a Mermaid component diagram, the drift-model
   equations, and the annotation-only invariant story: `docs/ARCHITECTURE.md`.
 - **Belief-ledger demo UI** (`src/tenet/static/index.html`) — chat on the left, the
   live belief state on the right with struck-through superseded history, a time-travel
   scrubber, and a faint dotted-underline "doubt" marker (hover for `p_valid`) on beliefs
-  the world model thinks are likely stale.
-- **`tenet doubts` CLI** renders the same world-model uncertainty table as a Rich
+  the drift model flags as likely stale.
+- **`tenet doubts` CLI** renders the same staleness/confidence table as a Rich
   table (or plain-text fallback) for a live terminal demo.
 - Every benchmark number reproduces from one documented CLI command
   (`tenet bench run <name>`, `docs/BENCHMARK.md`); honest weak spots (multi-session

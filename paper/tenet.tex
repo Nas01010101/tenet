@@ -10,7 +10,7 @@
 \setlength{\parskip}{0.35em}
 \setlength{\parindent}{0pt}
 
-\title{\textbf{Tenet: Agent Memory as a Self-Consistent World Model}}
+\title{\textbf{Tenet: Agent Memory as a Self-Consistent Belief State}}
 \author{Anas\\\small Global AI Hackathon with Qwen Cloud (Track 1), 2026\\
 \small\texttt{https://github.com/Nas01010101/tenet}}
 \date{}
@@ -28,8 +28,8 @@ degrades} under it: as the number of stale versions of a fact exceeds the retrie
 $k$, the reader is handed conflicting values and answers incorrectly. On a controlled
 benchmark, a strong RAG-memory falls from $100\%$ to $50\%$ current-value accuracy as a
 fact is updated $2\!\to\!12$ times. We propose \textbf{Tenet}, which reframes memory as a
-\textbf{self-consistent belief state}---a compact \emph{world model of the user}---rather
-than a document store. Tenet (i)~distills raw turns into atomic, keyed facts; (ii)~maintains
+\textbf{self-consistent belief state}---a compact, supersession-aware set of facts about the
+user---rather than a document store. Tenet (i)~distills raw turns into atomic, keyed facts; (ii)~maintains
 a \textbf{bi-temporal} record so a changed fact \emph{supersedes} its predecessor (retired
 to history, not overwritten); (iii)~enforces \textbf{belief--evidence consistency} by
 retiring raw evidence that echoes a superseded belief; (iv)~applies a
@@ -66,7 +66,7 @@ The root problem is abstraction. A document store has no notion that ``I live in
 and ``I live in Seattle'' are the \emph{same fact} with a \emph{changed value}. We argue
 memory should be a \textbf{belief state}: a compact set of \emph{current} beliefs, each with
 a temporal extent, updated by observation, kept internally consistent, and queryable across
-time---the stance world-model and predictive-coding accounts take toward
+time---the stance predictive-coding accounts take toward
 perception~\cite{friston}, brought to agent memory.
 
 \textbf{Contributions.}
@@ -166,8 +166,8 @@ moves on. We retire from current recall any raw slice $e$ close to a \emph{super
 This single rule turns supersession into end-to-end correctness: $55\%\!\to\!100\%$
 (\S\ref{sec:abl}).
 
-\textbf{Predictive-coding write policy.} A world model stores \emph{prediction error}. On
-write, a raw observation $e$ is discarded if the store already predicts it:
+\textbf{Predictive-coding write policy.} Predictive coding stores \emph{prediction error},
+not everything. On write, a raw observation $e$ is discarded if the store already predicts it:
 \[
 \text{store } e \iff \max_{e'\in\text{store}}\cos(e,e')\ <\ g_{\text{surprise}},
 \qquad g_{\text{surprise}}=0.97 .

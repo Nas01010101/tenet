@@ -1,0 +1,121 @@
+[1/100] single-session-pre turns= 437 | recall rag:✗ tenet:✓ | QA rag:✗ tenet:✗
+[2/100] multi-session      turns= 530 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[3/100] knowledge-update   turns= 502 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[4/100] temporal-reasoning turns= 444 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[5/100] multi-session      turns= 532 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[6/100] temporal-reasoning turns= 495 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[7/100] knowledge-update   turns= 503 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[8/100] single-session-use turns= 500 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[9/100] single-session-use turns= 512 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[10/100] single-session-pre turns= 524 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[11/100] temporal-reasoning turns= 467 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[12/100] temporal-reasoning turns= 537 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[13/100] temporal-reasoning turns= 614 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[14/100] multi-session      turns= 477 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[15/100] single-session-use turns= 495 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[16/100] single-session-use turns= 514 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[17/100] temporal-reasoning turns= 532 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[18/100] knowledge-update   turns= 504 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[19/100] multi-session      turns= 525 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[20/100] single-session-use turns= 474 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[21/100] single-session-ass turns= 589 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[22/100] single-session-use turns= 492 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[23/100] temporal-reasoning turns= 500 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[24/100] knowledge-update   turns= 479 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[25/100] single-session-ass turns= 539 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[26/100] temporal-reasoning turns= 500 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[27/100] temporal-reasoning turns= 460 | recall rag:✗ tenet:✓ | QA rag:✗ tenet:✗
+[28/100] multi-session      turns= 474 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[29/100] temporal-reasoning turns= 459 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[30/100] temporal-reasoning turns= 461 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[31/100] temporal-reasoning turns= 533 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[32/100] multi-session      turns= 462 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[33/100] single-session-ass turns= 520 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[34/100] temporal-reasoning turns= 467 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[35/100] knowledge-update   turns= 528 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[36/100] knowledge-update   turns= 483 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[37/100] single-session-ass turns= 483 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[38/100] temporal-reasoning turns= 478 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[39/100] multi-session      turns= 467 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[40/100] temporal-reasoning turns= 463 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[41/100] single-session-use turns= 476 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[42/100] multi-session      turns= 497 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[43/100] single-session-ass turns= 493 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[44/100] single-session-pre turns= 475 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[45/100] temporal-reasoning turns= 516 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[46/100] temporal-reasoning turns= 516 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[47/100] single-session-use turns= 616 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[48/100] multi-session      turns= 530 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[49/100] multi-session      turns= 466 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[50/100] temporal-reasoning turns= 489 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[51/100] knowledge-update   turns= 527 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[52/100] knowledge-update   turns= 516 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[53/100] temporal-reasoning turns= 467 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[54/100] temporal-reasoning turns= 453 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[55/100] multi-session      turns= 515 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[56/100] knowledge-update   turns= 480 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[57/100] single-session-ass turns= 533 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[58/100] single-session-ass turns= 503 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[59/100] temporal-reasoning turns= 561 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[60/100] multi-session      turns= 516 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[61/100] knowledge-update   turns= 483 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[62/100] single-session-use turns= 461 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[63/100] multi-session      turns= 501 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[64/100] multi-session      turns= 474 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[65/100] single-session-use turns= 503 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[66/100] multi-session      turns= 460 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[67/100] temporal-reasoning turns= 486 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[68/100] multi-session      turns= 458 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[69/100] single-session-use turns= 487 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[70/100] single-session-use turns= 506 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[71/100] single-session-pre turns= 496 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[72/100] knowledge-update   turns= 481 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[73/100] multi-session      turns= 481 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[74/100] multi-session      turns= 479 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[75/100] multi-session      turns= 494 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[76/100] multi-session      turns= 514 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[77/100] single-session-ass turns= 477 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[78/100] knowledge-update   turns= 477 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[79/100] single-session-ass turns= 439 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[80/100] single-session-ass turns= 537 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[81/100] knowledge-update   turns= 482 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✗
+[82/100] multi-session      turns= 457 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[83/100] knowledge-update   turns= 537 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[84/100] temporal-reasoning turns= 533 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[85/100] knowledge-update   turns= 436 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[86/100] multi-session      turns= 491 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[87/100] temporal-reasoning turns= 454 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+[88/100] knowledge-update   turns= 476 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[89/100] multi-session      turns= 492 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[90/100] temporal-reasoning turns= 491 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[91/100] temporal-reasoning turns= 484 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[92/100] temporal-reasoning turns= 492 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[93/100] single-session-use turns= 518 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[94/100] single-session-ass turns= 493 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[95/100] multi-session      turns= 448 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✓
+[96/100] temporal-reasoning turns= 434 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[97/100] temporal-reasoning turns= 480 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[98/100] single-session-use turns= 463 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[99/100] knowledge-update   turns= 481 | recall rag:✓ tenet:✓ | QA rag:✓ tenet:✓
+[100/100] temporal-reasoning turns= 486 | recall rag:✓ tenet:✓ | QA rag:✗ tenet:✗
+
+=== LongMemEval_S (n=100) ===
+session-level recall@10:  rag=98.0%  tenet=100.0%
+
+answer accuracy (QA):  rag@10=79.0%  tenet=81.0%
+  rag           acc= 79.0%  ctx≈  1922 tok  acc/1k-tok=  41.1
+  tenet         acc= 81.0%  ctx≈  1911 tok  acc/1k-tok=  42.4
+
+context chars fed to reader: full≈505619  rag≈7689  tenet≈7643
+  → tenet uses 98.5% less context than full history
+
+by type (recall rag/tenet · QA rag/tenet):
+  knowledge-update         100.0%/100.0%  ·  100.0%/ 76.5%  (n=17)
+  multi-session            100.0%/100.0%  ·   54.2%/ 75.0%  (n=24)
+  single-session-assistant 100.0%/100.0%  ·  100.0%/ 90.9%  (n=11)
+  single-session-preference  75.0%/100.0%  ·   50.0%/ 50.0%  (n=4)
+  single-session-user      100.0%/100.0%  ·  100.0%/100.0%  (n=14)
+  temporal-reasoning        96.7%/100.0%  ·   73.3%/ 80.0%  (n=30)
+
+QA tokens: in=0 out=0
+wall=17658s

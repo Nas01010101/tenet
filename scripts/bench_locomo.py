@@ -213,11 +213,18 @@ def main() -> int:
     ap.add_argument("--arms", default="tenet,rag")
     ap.add_argument("--workers", type=int, default=8, help="reader/judge concurrency")
     ap.add_argument("--dump", default="")
+    ap.add_argument("--dump-all", default="",
+                    help="JSONL of EVERY item's per-arm ok/pred (not just misses) — for "
+                         "pairing two separate runs (e.g. raw_recall ON vs OFF) by (ci,q) "
+                         "since --sample/--seed picks the identical question set")
     ap.add_argument("--out", default="")
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--tenet-agg", action="store_true",
                     help="opt into recall()'s CAR-style read-time recency aggregation "
                          "(docs/COMPARISON.md follow-up #1) on the tenet arm; default off")
+    ap.add_argument("--tenet-raw", action="store_true",
+                    help="opt into recall()'s raw-turn-favored dual-pool split "
+                         "(docs/COMPARISON.md follow-up #2) on the tenet arm; default off")
     args = ap.parse_args()
     if args.smoke:
         args.sample = 0  # all questions of the single conv we keep below
@@ -265,7 +272,8 @@ def main() -> int:
             top = np.argsort(-(turn_vecs @ qv))[: args.k]
             ctx["rag"] = "\n".join(turn_rows[i][1] for i in sorted(top))
         if "tenet" in arms:
-            hits = m.core.recall(q, k=args.k, expand=args.expand, agg_reader=args.tenet_agg)
+            hits = m.core.recall(q, k=args.k, expand=args.expand, agg_reader=args.tenet_agg,
+                                  raw_recall=args.tenet_raw)
             ctx["tenet"] = "\n".join(h.text for h in hits)
         idx = len(recs)
         recs.append({"ci": ci, "q": q, "cat": cat, "gold": gold,
@@ -357,6 +365,11 @@ def main() -> int:
                              ("ci", "q", "cat", "gold", "gold_corr", "changed", "pred",
                               "ok", "err")}) + "\n")
         dump_f.close()
+    if args.dump_all:
+        with open(args.dump_all, "w") as f:
+            for r in recs:
+                f.write(json.dumps({k: r[k] for k in
+                         ("ci", "q", "cat", "gold", "pred", "ok", "err")}) + "\n")
     if args.out:
         Path(args.out).write_text(json.dumps({
             "config": {"sample": len(picked), "total_nonadv": total, "seed": args.seed,

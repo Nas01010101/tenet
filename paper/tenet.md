@@ -1,4 +1,4 @@
-# Tenet: Agent Memory as a Self-Consistent World Model
+# Tenet: Agent Memory as a Self-Consistent Belief State
 
 **Anas** · Global AI Hackathon with Qwen Cloud (Track 1) · 2026
 
@@ -18,7 +18,7 @@ conflicting values and answers incorrectly. On a controlled benchmark, a strong 
 falls from 100% to 50% current-value accuracy as a fact is updated 2→12 times.
 
 We propose **Tenet**, which reframes memory as a **self-consistent belief state** — a
-compact *world model of the user* — rather than a document store. Tenet (i) distills raw
+compact, supersession-aware set of facts about the user — rather than a document store. Tenet (i) distills raw
 turns into atomic, keyed facts; (ii) maintains a **bi-temporal** record so a changed fact
 *supersedes* its predecessor (retired to history, not overwritten); (iii) enforces
 **belief–evidence consistency** by retiring raw evidence that echoes a superseded belief;
@@ -59,7 +59,7 @@ The root problem is abstraction. A document store has no notion that "I live in 
 "I live in Seattle" are the *same fact* with a *changed value*; both are just passages. We
 argue memory should instead be a **belief state**: a compact set of *current* beliefs about
 the world, each with a temporal extent, updated by observation, kept internally consistent,
-and queryable across time. This is the stance world-model and predictive-coding accounts
+and queryable across time. This is the stance predictive-coding accounts
 take toward perception [Friston]; we bring it to agent memory.
 
 **Contributions.**
@@ -177,7 +177,7 @@ from current recall, any raw slice *e* whose embedding is close to a *superseded
 This single rule is what turns supersession from a fact-layer nicety into end-to-end
 correctness: it took current-value accuracy from 55% to 100% (§4.3).
 
-**3.4 Predictive-coding write policy (surprise-gating).** A world model stores *prediction
+**3.4 Predictive-coding write policy (surprise-gating).** Predictive coding stores *prediction
 error*, not everything. On write, a raw observation *e* is discarded if the store already
 predicts it — i.e. it is near-identical to an existing slice:
 
