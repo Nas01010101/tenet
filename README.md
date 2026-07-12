@@ -102,6 +102,21 @@ that *does* need judgment (turning a raw message into atomic, keyed facts) happe
 answers correct as facts change — is deterministic bi-temporal bookkeeping; no model is in that
 loop either.
 
+That makes the read path *fast* — and it stays fast at scale:
+
+| system | read/retrieval latency | LLM in read path | infra to run |
+|---|---:|:---:|---|
+| **Tenet** | **~11 ms** (@100k facts, flat) | **no** | none — sqlite + numpy |
+| Zep / Graphiti | ~150–300 ms (graph search) | no | graph DB (Neo4j / FalkorDB) |
+| Mem0 | ~1.44 s p95 (base) | no | vector DB |
+| Letta | model-dependent (an LLM call per op) | yes | agent server + Postgres |
+
+<sub>Tenet's read is embedding + cosine + closed-form decay over a resident matrix — **flat ~9–12 ms
+from 1k to 100k facts** ([`docs/SCALE.md`](docs/SCALE.md)), ~100× faster than its own pre-resident-index
+baseline. Latency *scopes* differ across systems (all exclude the downstream reader LLM); competitor
+figures are each project's own published retrieval latency. The point isn't a benchmarked race — it's
+that temporal correctness here costs **no graph database and no inference call.**</sub>
+
 LLM-agent memory is almost always **retrieval over a log of past turns**. That's the wrong
 abstraction for an agent modeling a *changing* world: as a fact is updated over a long
 interaction — **knowledge churn** — stale versions crowd the retrieval budget and the agent
@@ -256,8 +271,24 @@ ollama create tenet-distiller-1.5b-v2 -f Modelfile   # Modelfile: FROM ./tenet-d
 
 ## Results
 
-LongMemEval_S (n=40, gpt-4o reader) — honest, reproducible; full detail in
-[`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+LongMemEval_S — honest, reproducible; full detail in [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+
+**Absolute accuracy tracks reader strength, not the memory — because retrieval is already
+saturated (recall@10 = 97.5%).** The right facts are in the context; a stronger reader is what
+turns them into a right answer. Clean, un-batched, one call per item (batching inflated numbers
+and was struck from the record):
+
+| reader | RAG | **Tenet** |
+|---|---:|---:|
+| **gpt-5.5** (frontier) | 75.0 | **77.5** |
+| **Gemini-3.5-flash** | 70.0 | **75.0** |
+| gpt-4o (the weak-reader efficiency point, below) | 57.5 | 57.5 |
+
+So Tenet reaches **~75–78 % with a frontier reader** (≥ matched RAG at every reader) — the
+"57.5 %" you'll see below is a *deliberately weak-reader efficiency operating point*, **not**
+Tenet's accuracy ceiling, and the reason our figure looks lower than Mem0/Zep's 90 %+ headlines
+is the eval reader/embedder, not the memory design. *(n=40 clean; larger-N in progress.)* The
+table further down then traces the accuracy↔token **frontier** under a fixed gpt-4o reader.
 
 > **Note:** the shipped product runs **entirely on Qwen Cloud** (`text-embedding-v4`,
 > `qwen3.6-flash`, `qwen3.7-plus`). `gpt-4o`/`gpt-4o-mini` appear below **only as frozen

@@ -155,9 +155,21 @@ the fair comparison.
   **LLM-free reads**. Plus capabilities none report: bi-temporal `as_of`, principled
   forgetting, per-token efficiency.
 - **Tenet TIES:** PersonaMem-v2 overall (≈ RAG); ChurnBench (= Mem0-style).
-- **Tenet LOSES:** LoCoMo verbatim recall (RAG > Tenet, p=0.031); multi-hop reasoning
-  (reader-bound, not retrieval-bound); the vendor LongMemEval leaderboard on *absolute*
-  accuracy (bge-small harness, not the memory design — our own RAG only reaches ~57% there).
+- **Tenet LOSES:** LoCoMo verbatim recall (RAG > Tenet, p=0.031); multi-hop chaining; the
+  vendor LongMemEval leaderboard on *absolute* accuracy under a weak reader.
+
+**On the two losses — where the ceiling actually is (measured, not spun):**
+- **Multi-hop is a *reader* ceiling, not a memory one.** We measured it: `navigate()` already
+  retrieves the facts a multi-hop question needs across hops (retrieval pool is not the
+  bottleneck — BENCHMARK.md §684); the loss is the *reader composing* those facts into a chained
+  answer. A graph (Zep's approach) does not fix a reader-composition limit, and it would cost the
+  graph-DB infra Tenet deliberately avoids — so we do **not** build one. A stronger reader closes
+  this; an opt-in `reason`/decompose mode (Self-Ask over the belief state) is the in-scope lever.
+- **The "~57%" absolute is a *weak-reader* artifact, not the memory design.** Recall@10 is already
+  **97.5%** — the right facts are in the context. With a **frontier reader** (gpt-5.5 / Gemini-3.5,
+  clean un-batched), Tenet reaches **75–77.5%** (≥ matched RAG), and the 57.5% is a deliberately
+  weak-reader *efficiency* operating point, not Tenet's accuracy ceiling. See BENCHMARK.md
+  §"Reader-generality".
 
 ### Improvement follow-ups — three implemented and measured (all kept OFF), one open
 The top three EV follow-ups were built (behind default-off flags) and measured; all are
