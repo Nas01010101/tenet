@@ -28,10 +28,13 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 | **Infra to run** | **none (`pip`: sqlite+numpy)** | vector DB | **graph DB (Neo4j/FalkorDB)** | agent server + Postgres | service | service |
 | **Long-horizon churn tested** | ✅ (**100% at U=2/8/32**, tied-for-first with Mem0-style, dominates RAG/HippoRAG at U=32 — see head-to-head §A) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| LongMemEval_S | 57.5%¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
+| LongMemEval_S | **81.0%**¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
 
-¹ gpt-4o reader + bge-small embedder, parity operating point; our RAG baseline scores 57.5%
-on the same setup, so absolute numbers reflect our light embedder/harness, not the memory
+¹ **81.0%** = `qwen3.7-plus` reader (the shipped Qwen-Cloud stack), n=100, ≥ matched RAG (79.0%),
+100% recall@10, 98.5% less context than full — `docs/lme_qwen_n100_result.txt`. The older
+**57.5%** figure was a *deliberately weak-reader* efficiency operating point (gpt-4o reader +
+bge-small embedder), where our own RAG baseline also scores 57.5% — i.e. absolute numbers there
+reflect the light embedder/harness, not the memory
 design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc/token).
 
 ## Where Tenet sits

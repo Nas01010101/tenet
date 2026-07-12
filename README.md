@@ -85,7 +85,7 @@ Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](doc
 | MemoryAgentBench FactConsolidation (ICLR 2026), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
-| LongMemEval_S | accuracy per 1k reader tokens | **49.2** (best/token) | RAG 27.4 · full-context 0.5 | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
+| LongMemEval_S (n=100, `qwen3.7-plus` Qwen-Cloud reader) | QA accuracy | **81.0%** | ≥ matched RAG 79.0% · **100%** recall@10 · **98.5% less context** than full | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
 | Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
 
 Honest weak spots (multi-session synthesis, multi-hop chaining) are reported, not
@@ -274,21 +274,25 @@ ollama create tenet-distiller-1.5b-v2 -f Modelfile   # Modelfile: FROM ./tenet-d
 LongMemEval_S — honest, reproducible; full detail in [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
 
 **Absolute accuracy tracks reader strength, not the memory — because retrieval is already
-saturated (recall@10 = 97.5%).** The right facts are in the context; a stronger reader is what
-turns them into a right answer. Clean, un-batched, one call per item (batching inflated numbers
-and was struck from the record):
+saturated (recall@10 = 97.5–100%).** The right facts are in the context; a capable reader is what
+turns them into a right answer. On **Qwen Cloud's own reader** (`qwen3.7-plus`, the shipped
+product stack, fully cloud, n=100) Tenet reaches **81.0 %** — and frontier off-Qwen readers agree
+(clean, un-batched, one call per item):
 
-| reader | RAG | **Tenet** |
-|---|---:|---:|
-| **gpt-5.5** (frontier) | 75.0 | **77.5** |
-| **Gemini-3.5-flash** | 70.0 | **75.0** |
-| gpt-4o (the weak-reader efficiency point, below) | 57.5 | 57.5 |
+| reader | n | RAG | **Tenet** |
+|---|---:|---:|---:|
+| **`qwen3.7-plus`** (product · Qwen Cloud) | 100 | 79.0 | **81.0** |
+| **gpt-5.5** (frontier) | 40 | 75.0 | **77.5** |
+| **Gemini-3.5-flash** | 40 | 70.0 | **75.0** |
+| gpt-4o (the weak-reader efficiency point, below) | 40 | 57.5 | 57.5 |
 
-So Tenet reaches **~75–78 % with a frontier reader** (≥ matched RAG at every reader) — the
-"57.5 %" you'll see below is a *deliberately weak-reader efficiency operating point*, **not**
-Tenet's accuracy ceiling, and the reason our figure looks lower than Mem0/Zep's 90 %+ headlines
-is the eval reader/embedder, not the memory design. *(n=40 clean; larger-N in progress.)* The
-table further down then traces the accuracy↔token **frontier** under a fixed gpt-4o reader.
+So with a capable reader Tenet reaches **~75–81 %, ≥ matched RAG at every reader**, at **100 %
+recall@10** and **98.5 % less context** than full history — and on the Qwen reader it *wins* the
+multi-session category (75.0 vs 54.2) and temporal reasoning (80.0 vs 73.3). The "57.5 %" you'll
+see below is a *deliberately weak-reader efficiency operating point*, **not** Tenet's accuracy
+ceiling; the reason our headline once looked lower than Mem0/Zep's 90 %+ was the eval
+reader/embedder, not the memory design. The table further down traces the accuracy↔token
+**frontier** under a fixed gpt-4o reader.
 
 > **Note:** the shipped product runs **entirely on Qwen Cloud** (`text-embedding-v4`,
 > `qwen3.6-flash`, `qwen3.7-plus`). `gpt-4o`/`gpt-4o-mini` appear below **only as frozen
