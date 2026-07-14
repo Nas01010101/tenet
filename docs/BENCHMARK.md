@@ -319,7 +319,17 @@ frameworks: Mem0 32.6, Zep 37.5, MemGPT ≈39.
   (both arms identical), not retrieval-bound.
 - **RULER MH-QA is the honest loss** (45 vs 66): HippoRAG-v2's Personalized-PageRank
   graph is genuinely better at multi-hop chaining over narrative documents. Reported,
-  not hidden.
+  not hidden. **Two 2026-07 follow-ups (both null/negative, both reported):** (a) BM25+dense
+  **RRF** at the retrieval stage ties baseline gold-in-pool exactly (72=72, n=100) — the gap
+  is *composition*, not retrieval (`docs_scratch/ruler_mh_rrf.md`); (b) **Self-Ask query
+  decomposition** with intermediate-answer-anchored hop-2 retrieval *hurts* on a strong reader
+  (60.6→53.5 SubEM, McNemar net −7, `qwen3.7-plus`) — decomposition loses baseline chunks and
+  error-propagates (`docs_scratch/ruler_mh_hop.md`). Notably that same run shows baseline
+  RULER-MH is **60.6% [50.8, 69.7]** on the shipped `qwen3.7-plus` reader (vs 45 at the
+  leaderboard-matched gpt-4o-mini tier), CI-overlapping HippoRAG's 66 — so most of the "loss"
+  is reader strength, not a memory-mechanism deficit (off-protocol; doesn't change the #2
+  ranking). Closing it *at the gpt-4o-mini tier* needs a learned graph traversal, not a cheap
+  read-time trick.
 - **The efficiency story**: HippoRAG-v2's ingestion runs LLM OpenIE over every token
   of the 197K–534K contexts; Tenet ingests with **embeddings only** and still reaches
   91% of its AR average — and beats every other published memory framework (Mem0,
