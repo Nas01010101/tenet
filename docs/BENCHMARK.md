@@ -590,14 +590,21 @@ the same harness:
 | 32 | 98.0 [89.5, 99.6] | 98.0 [89.5, 99.6] |
 
 Consolidation **ties or marginally trails** the default (98 vs 100 at U=8; both CIs overlap
-fully) — hard-archiving raw echoes removes verbatim detail the reader still uses, and the
-default stack (key-resolution + read-time consistency §9.1 + currency-context) already holds
-half-life 32 without deleting history. So the flag **ships default-OFF**, joining the honest
-ledger of measured-negative flags (`TENET_RAW_RECALL`, `TENET_AGG_READER`, `TENET_RETRACT`).
-Net: Tenet reaches Mem0-style's extreme-churn robustness **while keeping the belief history
-and time-travel that delete-outright throws away** — the delete is not what earns the number.
-(Default arm here = 98 at U=32, consistent with §14's 100/100/100 within CI; the residual
-gap to a literal flat 100 is reader stochasticity at n=50, not a mechanism deficit.)
+fully) — hard-archiving raw echoes removes verbatim detail the reader still uses. So the flag
+**ships default-OFF**, joining the honest ledger of measured-negative flags
+(`TENET_RAW_RECALL`, `TENET_AGG_READER`, `TENET_RETRACT`).
+
+**Honest framing — do NOT overclaim this as a churn win over Mem0.** The default arm's U=32
+number is run-dependent: **82%** (§9.1, tenet+1+2) to **98%** (this run, fresh distillation +
+key-resolution default-on since 2026-07-10), half-life 32 either way — but the *idealized*
+delete-outright **mem0-style** arm stays **flat 100** at U=32 (§9's headline table), so **on
+raw multi-fact churn accuracy Tenet does not beat it.** What this section shows is only that
+*porting* delete-outright into Tenet buys nothing over the read-time machinery — not that
+Tenet wins the churn axis. Tenet's real advantage over Mem0 is elsewhere: (1) the idealized
+delete-outright arm is **not how the real `mem0ai` package behaves** — the real package
+*accumulates* stale copies and loses a live head-to-head (§A.2); (2) Tenet keeps a **queryable
+belief history + time-travel** that delete-outright discards. The durable edge is *stays
+correct **and** keeps the history*, not a higher churn number.
 
 Reproduce: `LLM_PROVIDER=qwen EMBED_PROVIDER=local python scripts/bench_churn.py --updates
 2,8,32 --principals 10 --arms tenet,tenet_consolidate --consistency-threshold 0.70

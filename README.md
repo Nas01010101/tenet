@@ -324,15 +324,19 @@ Tenet is a **frontier, not a point** — one `expand` knob trades tokens for acc
   `gpt-4o-mini` reader the parity point edges ahead (60.0 vs 55.0).
 - **Best accuracy-per-token** at the efficiency point (1.6× RAG at *half* its context) — and
   **reader-robust** across the `gpt-4o-mini` and `gpt-4o` readers we ran (≈1.6×).
-- **Churn-robust (templated primitive):** on the single-attribute churn primitive (§3,
-  `bench_horizon`) Tenet holds 100% at every update level while RAG collapses to 50% — the
-  collapse holds under a gpt-4o reader, so it's *structural*, not reader weakness. On the
-  harsher *paraphrased* [ChurnBench](docs/BENCHMARK.md#9-churnbench--parametric-high-churn-stress-test-measured-2026-07-10)
-  (§9), the default stack (read-time consistency + key-resolution + currency-context) reaches
-  **half-life 32** (98–100% through U=32 on the Qwen stack) — matching Mem0-style delete-outright
-  consolidation *while keeping belief history*. We even ported that delete-outright trick into
-  Tenet (`TENET_CONSOLIDATE`) and measured it as a **no-benefit** (ties/marginally trails the
-  default — [§9.2](docs/BENCHMARK.md#92-write-time-consolidation-tenet_consolidate--a-measured-negative-measured-2026-07-14)); it ships default-OFF.
+- **Churn — reported honestly, no strawman.** On the single-attribute primitive (§3,
+  `bench_horizon`) Tenet holds 100% vs RAG's 50% collapse. But that primitive is
+  pre-registered to *structurally favor* Tenet — so we also run the harder multi-fact
+  [ChurnBench](docs/BENCHMARK.md#9-churnbench--parametric-high-churn-stress-test-measured-2026-07-10)
+  (§9), where the honest picture is: read-time fixes lift Tenet's churn half-life from <2 to
+  **32** (~82% at U=32, §9.1), but an *idealized* delete-outright Mem0-style arm stays flat 100
+  there — **Tenet does not beat it on raw churn accuracy, and we say so.** What Tenet wins is
+  against the **real `mem0ai` package**, which (unlike that idealized arm) *accumulates* stale
+  copies — in a live head-to-head it answers with a superseded value while Tenet keeps a clean,
+  queryable belief history ([§A.2](docs/COMPARISON.md)). The durable edge over Mem0 isn't
+  churn accuracy — it's **staying correct *and* keeping the history Mem0 deletes, at far less
+  context.** (We ported delete-outright into Tenet as `TENET_CONSOLIDATE` and measured it a
+  **no-benefit** — default-OFF, [§9.2](docs/BENCHMARK.md#92-write-time-consolidation-tenet_consolidate--a-measured-negative-measured-2026-07-14).)
 - **Ablation:** the belief–evidence consistency rule alone lifts current-value accuracy 55%→100%.
 - **Honest:** the one category still behind RAG is multi-session synthesis (42.9 vs 57.1, up
   from 28.6). We report it. *(Eval off-Qwen, one seed, reader noise ≈±5–7pp; shipped system uses Qwen Cloud.)*
