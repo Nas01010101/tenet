@@ -81,6 +81,14 @@ mem.get_all(user_id="alex")                        # → readable belief state, 
 
 Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](docs/COMPARISON.md).
 
+> **Reproducibility is the pitch.** Independent 2026 audits found the field's headline
+> numbers don't survive reproduction — Mem0 claims 93.4% on LongMemEval but reproduces at
+> [73.8% hosted / 32.4% OSS](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);
+> LoCoMo's answer key is 6.4% wrong. Tenet reports **every** number with a Wilson 95% CI,
+> ships **four flags default-OFF because we measured them as no-benefit**, and **falsified
+> its own churn claim in public** before fixing it. Built **100% on Qwen Cloud** (no OpenAI
+> in the product path). Every result reproduces from one command.
+
 ## Results at a glance
 
 | benchmark | metric | Tenet | comparison | source |
