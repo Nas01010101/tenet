@@ -17,10 +17,14 @@ claim it licenses (with an adversarial defect list + severities).
 - **A frontier, not a point** (one `expand` knob): the **efficiency** point gives the
   **best accuracy-per-token** (49.2, 1.6× RAG) at *half* the context; the **parity** point
   **matches strong RAG's one-shot accuracy at equal-or-lower tokens** (57.5% = 57.5%, gpt-4o).
-- **Dominates the long-horizon regime on the templated primitive**: as a fact is updated
-  many times, RAG collapses (100%→50%) while Tenet holds 100% there; on the harsher
-  paraphrased ChurnBench (§9) the fixed system measures 98/92/82 at U=2/8/32. This is
-  the regime long-term memory is *for*.
+- **The long-horizon churn regime, reported without a strawman**: on the templated primitive
+  (pre-registered to favor Tenet) RAG collapses 100%→50% while Tenet holds 100%. On the harder
+  paraphrased ChurnBench (§9), the honest picture: read-time fixes lift Tenet's churn half-life
+  from <2 to **32** (U=32 accuracy **~82–100% across runs** — see §9.1 for the run-to-run
+  spread). An *idealized* delete-outright Mem0-style arm holds flat 100 there, so **Tenet ties
+  it but does not beat it on raw churn accuracy — we say so.** Tenet's real churn win is against
+  the **actual `mem0ai` package** (which accumulates stale copies, unlike that idealized arm):
+  100% vs 73.3%, p=0.0078 (COMPARISON §A.2). This is the regime long-term memory is *for*.
 - **Honest weakness**: multi-session synthesis — the one category still behind RAG
   (42.9 vs 57.1, up from 28.6). Documented in §8.
 
@@ -401,11 +405,24 @@ questions/point (10 principals × 5 facts), Wilson 95% CIs, 0 API-error exclusio
 
 churn half-life: **tenet <2, rag 8, mem0 32, hipporag 8**.
 
-> **Outcome (read forward):** this falsification was diagnosed (below), fixed by a
-> read-time consistency rule (§9.1, → 98/92/82), and then **fully closed** by the
-> write-side embedding key-resolution (§13.1) — a fresh four-arm run scores Tenet
-> **100/100/100** at U=2/8/32, half-life 32, tied-for-first with Mem0-style and LLM-free
-> (§14). The section below is the original falsification, kept as the pre-registered record.
+> **Outcome (read forward) — one canonical story, stated to avoid number-drift across this
+> doc.** This table is the raw baseline with read-time consistency **OFF** (tenet U=32 ≈ 44%,
+> half-life <2) — the pre-registered falsification. The read-time consistency rule (§9.1) plus
+> the write-side key-resolution (§13.1) — **both defaulted ON in shipped `recall()`** — lift
+> Tenet's churn **half-life to 32**. The U=32 accuracy is **run-dependent: 82% (§9.1,
+> consistency-only) up to 100% (§14, fresh distillation + key-resolution + currency-context)**;
+> the spread is qwen3.7-plus reader non-determinism (temp-0 still drifts a few points on n=50)
+> plus the effect of the fixes stacking. **Honest ceiling claim: Tenet reaches half-life 32 and
+> ~82–100% at U=32 — it *ties* the idealized delete-outright Mem0-style arm (flat 100) but does
+> not beat it on raw accuracy.** The real win is vs the *actual* `mem0ai` package (COMPARISON
+> §A.2), which accumulates stale copies and loses (100 vs 73.3, p=0.0078). Every other section
+> that quotes a churn number refers back to this range. The table below is the original
+> falsification, kept as the pre-registered record.
+>
+> **Reproduce this falsification** (consistency OFF): `python scripts/bench_churn.py --updates
+> 2,4,8,16,32 --principals 10 --no-consistency`. A plain `bench_churn.py` (no `--no-consistency`)
+> now runs with consistency **0.70 — the shipped `recall()` default** — so it reflects the
+> product, not this baseline.
 
 **Ship gate: FALSIFIED, not a partial miss.** The pre-registered gate (Tenet half-life
 ≥2× best baseline, CI-separated at U=8) required Tenet to *lead*; instead Tenet is the
@@ -454,8 +471,10 @@ is real and reproduces here. Mem0-style, which *does* consolidate at write time 
 not retire-and-keep), stays flat at 100% through U=32 — the closest thing to Tenet's own
 mechanism family, and the one arm this build's stale-raw-leakage bug doesn't touch.
 
-Reproduce: `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5
---distractor-sessions 4 --k 10 --arms tenet,rag,mem0,hipporag --updates 2,4,8,16,32`
+Reproduce **this falsification** (note `--no-consistency` — a plain run now defaults to the
+shipped consistency 0.70): `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5
+--distractor-sessions 4 --k 10 --arms tenet,rag,mem0,hipporag --updates 2,4,8,16,32
+--no-consistency`
 (deterministic unit tests: `python scripts/test_churnbench.py`, no LLM). Artifacts:
 `docs/churnbench_results.json` (full curve), `docs/churnbench_misses.jsonl` (every
 miss, all arms), `docs/churnbench_curve.png` (plot).
@@ -926,9 +945,14 @@ supersession-firing fix + §9.1 consistency):
 | 32 | **100.0** [88.6,100] | 30.0 [16.7,47.9] | **100.0** [88.6,100] | 30.0 [16.7,47.9] |
 | half-life | **32** | 8 | **32** | 8 |
 
-This **reverses the §9 falsification** (pre-fix Tenet was 46% / half-life <2 here): current
-Tenet is tied-for-first with Mem0-style at 100% across all U and dominates RAG/HippoRAG at
-extreme churn — with **LLM-free reads** (Mem0-style pays an LLM ADD/UPDATE per fact at write).
+This **reverses the §9 falsification** (pre-fix Tenet was 46% / half-life <2 here) and lifts
+Tenet's half-life to **32**. This particular run scored 100 at U=32; a separate run (§9.1)
+scored 82 — the honest claim across runs is **half-life 32, U=32 ≈ 82–100%** (see the §9
+"canonical story" note; the spread is reader non-determinism). At best Tenet **ties** the
+idealized delete-outright Mem0-style arm (flat 100) — it does **not** beat it on raw accuracy —
+but it does so with **LLM-free reads** (Mem0-style pays an LLM ADD/UPDATE per fact at write),
+and it beats the **real** `mem0ai` package, which unlike this idealized arm accumulates stale
+copies (COMPARISON §A.2: 100 vs 73.3, p=0.0078).
 
 **B. MAB FactConsolidation** (matched 7B, n=200 pooled): Tenet **90.0 SH / 36.0 MH** leads all
 four methods incl. published-SOTA CAR (87.5 / 33.0) — see §6.1.

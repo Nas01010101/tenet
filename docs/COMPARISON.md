@@ -49,7 +49,7 @@ brand is: **the memory system whose numbers you can actually reproduce.**
 | **Mem0-compatible API** (`add`/`search`/`get_all`/`delete`) | ✅ | ✅ (native) | ❌ (graph API) | ❌ (runtime) | ❌ | ❌ |
 | MCP-native | ✅ | partial | ✅ | ❌ | ❌ | ❌ |
 | **Infra to run** | **none (`pip`: sqlite+numpy)** | vector DB | **graph DB (Neo4j/FalkorDB)** | agent server + Postgres | service | service |
-| **Long-horizon churn tested** | ✅ (**100% at U=2/8/32**, tied-for-first with Mem0-style, dominates RAG/HippoRAG at U=32 — see head-to-head §A) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Long-horizon churn tested** | ✅ (**half-life 32**, ties idealized Mem0-style, dominates RAG/HippoRAG at U=32; **beats the real `mem0ai` package** 100 vs 73.3 — §A/§A.2) | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Time-travel (`as_of`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 | LongMemEval_S | **81.0%**¹ | 94.4% | 71.2% | n/a | 94.9% | 96.2% |
 
@@ -81,11 +81,12 @@ design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc
   **staleness hints** (`tenet doubts` — learned P(still-valid) per attribute; annotation-only,
   never re-ranks).
 - **Tests a regime none of them report:** long-horizon knowledge churn. On the harsher
-  paraphrased, multi-attribute ChurnBench (`docs/BENCHMARK.md` §9/§14), current Tenet holds
-  **100% at U=2/8/32** — tied-for-first with Mem0-style and dominating RAG/HippoRAG-v2 (which
-  collapse to 30% at U=32). This **reverses the earlier §9 falsification** (pre-fix Tenet was
-  46% / half-life <2): the 2026-07-10 supersession-firing fix closed it. See the controlled
-  head-to-head table below (§A). The full falsification → fix history is reported, not hidden.
+  paraphrased, multi-attribute ChurnBench (`docs/BENCHMARK.md` §9/§14), read-time fixes lift
+  Tenet's churn **half-life to 32** (U=32 ≈ **82–100% across runs**) — it **ties** an idealized
+  delete-outright Mem0-style arm (not beats it) and dominates RAG/HippoRAG-v2 (which collapse to
+  30% at U=32). This **reverses the earlier §9 falsification** (pre-fix Tenet was 46% / half-life
+  <2). The real churn win is vs the **actual `mem0ai` package** (§A.2), which accumulates stale
+  copies and loses. Full falsification → fix history reported, not hidden.
 - **Optimises the frontier the leaderboard ignores:** accuracy *per token*. Tenet gives
   the best acc/1k-tokens of the approaches we ran (49 vs RAG 27 vs full-context 0.5) — and,
   via belief-anchored expansion, can spend that headroom to reach one-shot **accuracy parity
@@ -111,15 +112,18 @@ A fact's value is updated `U` times across a distractor-laden history; ask the C
 | 32 | **100.0** [88.6,100] | 30.0 [16.7,47.9] | **100.0** [88.6,100] | 30.0 [16.7,47.9] |
 | churn half-life | **32** | 8 | **32** | 8 |
 
-**Tenet is tied-for-best (with Mem0-style) and dominates the retrieval baselines at extreme
-churn** (100% vs 30% at U=32; CI-separated). Two things make this Tenet's regime: (1) it
-**reverses the earlier §9 falsification** — pre-fix Tenet scored 46% / half-life <2 here; the
-2026-07-10 supersession-firing fix (concrete-key distiller + embedding key-resolution) plus
-the §9.1 read-time consistency fix is what closed it to 100%; (2) Tenet reaches parity with
-Mem0-style while doing **LLM-free reads** — Mem0-style pays an LLM ADD/UPDATE call *per fact
-at write*, Tenet resolves supersession at distill time and reads with pure vector + decay.
-RAG and HippoRAG-v2 collapse at U=32 because the top-k physically fills with stale versions —
-a failure no reader strength or graph can fix.
+**Tenet lifts its churn half-life to 32 and dominates the retrieval baselines at extreme
+churn** (this run: 100% vs 30% at U=32; CI-separated). Honest on the ceiling: the U=32 number
+is run-dependent (**~82–100%**, `BENCHMARK.md` §9 canonical note) and the idealized
+delete-outright Mem0-style arm holds flat 100 — **Tenet ties it, does not beat it, on raw
+churn accuracy.** Two things still make this Tenet's regime: (1) it **reverses the earlier §9
+falsification** — pre-fix Tenet scored 46% / half-life <2; the 2026-07-10 supersession-firing
+fix + the §9.1 read-time consistency fix (both shipped defaults) is what closed it; (2) Tenet
+matches Mem0-style's robustness while doing **LLM-free reads** — Mem0-style pays an LLM
+ADD/UPDATE call *per fact at write* — **and beats the *real* `mem0ai` package** (§A.2), which
+unlike this idealized delete-arm accumulates stale copies. RAG and HippoRAG-v2 collapse at
+U=32 because the top-k physically fills with stale versions — a failure no reader strength or
+graph can fix.
 
 > **"Mem0-style" above is an *idealized* reimpl, and it flatters Mem0.** That arm *deletes*
 > superseded memories outright, so nothing stale can leak — flat 100. **The real `mem0ai`
@@ -215,9 +219,10 @@ the fair comparison.
 
 ### Where each system wins / loses (honest map)
 - **Tenet WINS (same-harness):** MAB FactConsolidation SH **and** MH — beats all four
-  competitor methods including published-SOTA CAR. Long-horizon churn — **tied-for-first**
-  with Mem0-style (both 100% at U=32) while dominating RAG/HippoRAG, and doing it with
-  **LLM-free reads**. Plus capabilities none report: bi-temporal `as_of`, principled
+  competitor methods including published-SOTA CAR. Long-horizon churn — **ties** the idealized
+  Mem0-style delete-arm (half-life 32; does not beat it on raw accuracy) while dominating
+  RAG/HippoRAG with **LLM-free reads**, and **beats the real `mem0ai` package** (§A.2). Plus
+  capabilities none report: bi-temporal `as_of`, principled
   forgetting, per-token efficiency.
 - **Tenet TIES:** PersonaMem-v2 overall (≈ RAG); ChurnBench (= Mem0-style).
 - **Tenet LOSES:** LoCoMo verbatim recall (RAG > Tenet, p=0.031); multi-hop chaining; the
