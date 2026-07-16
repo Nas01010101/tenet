@@ -204,6 +204,10 @@ no network call at all); `tenet remember` / `tenet chat` / the MCP `learn` tool 
 `DASHSCOPE_API_KEY` (or `LLM_PROVIDER=openrouter`) since they distill text with an LLM call —
 without one you'll see a clear "memory write failed: ..." error rather than a silent no-op.
 
+Default DB location: `data/tenet.db` (repo-local, gitignored, created on first write — no setup
+needed). Override with `TENET_DB_PATH=/path/to/db`. If `data/` can't be created or written on this
+machine, the default falls back automatically to `~/.tenet/tenet.db`.
+
 More in [`examples/`](examples/) — zero-key demo, quickstart, assistant loop, MCP client,
 LangChain adapter, LangGraph `BaseStore` adapter.
 

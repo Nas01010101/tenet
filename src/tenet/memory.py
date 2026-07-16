@@ -45,8 +45,28 @@ from .navigate import navigate as _navigate
 # TENET_DB_PATH lets callers (tests, mcp_server's module-level default Tenet())
 # redirect the default db off data/ when that symlink target isn't reachable
 # (e.g. an external volume TCC-blocks this process — see BENCHMARK.md §9).
-_DEFAULT_DB = Path(os.environ["TENET_DB_PATH"]) if os.environ.get("TENET_DB_PATH") else (
-    Path(__file__).resolve().parent.parent.parent / "data" / "tenet.db")
+#
+# `data` is also, on the maintainer's machine, a symlink onto an external SSD
+# (dev convenience — the dataset cache lives there). On any OTHER machine that
+# symlink is either absent (fine — mkdir below just creates a real data/ dir)
+# or, if it was ever git-tracked and checked out, DANGLING (the dirent exists
+# but its target doesn't) — and `Path.mkdir(parents=True, exist_ok=True)` on a
+# dangling symlink raises FileExistsError (the entry exists, but `is_dir()`
+# can't confirm it, so exist_ok can't save it). Detect that case up front and
+# fall back to a machine-local dir so a fresh clone works with zero env vars.
+def _resolve_default_db_path(repo_root: Path | None = None) -> Path:
+    if os.environ.get("TENET_DB_PATH"):
+        return Path(os.environ["TENET_DB_PATH"])
+    root = repo_root if repo_root is not None else Path(__file__).resolve().parent.parent.parent
+    data_dir = root / "data"
+    dangling = data_dir.is_symlink() and not data_dir.exists()
+    unwritable = data_dir.exists() and data_dir.is_dir() and not os.access(data_dir, os.W_OK)
+    if dangling or unwritable:
+        return Path.home() / ".tenet" / "tenet.db"
+    return data_dir / "tenet.db"
+
+
+_DEFAULT_DB = _resolve_default_db_path()
 
 # Forgetting knobs
 _HALFLIFE_S = 14 * 24 * 3600  # a memory's recency weight halves every 14 days
