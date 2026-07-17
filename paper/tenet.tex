@@ -309,6 +309,11 @@ consolidation 81.0~/~12.0, HippoRAG-v2-style OpenIE+PPR graph 66.0~/~9.0, MemAge
 overwrite memory 44.0~/~16.0 ($n{=}25$). \textbf{Tenet leads every arm on both axes
 (90.0~/~36.0 on the same cells)}---ingestion-time supersession matches or beats the best
 assembly-time aggregation while doing the consistency work once at write time.
+Beyond reimplementations, one released framework run fully \emph{black-box} through its
+own ingest-and-retrieve pipeline (ReMe, reme-ai 0.4.1.1; identical Qwen reader/judge for
+all arms): on LongMemEval\_S full haystacks ($n{=}100$) \textbf{Tenet 67.0\%
+[57.3, 75.4] vs ReMe 34.0\% [25.5, 43.7]} (McNemar $p\approx2\times10^{-6}$; matched
+RAG 64.0, blind 0.0), Tenet ahead on every question type.
 
 \subsection{Accurate retrieval at zero ingestion cost: MemoryAgentBench AR}
 On MAB's other core competency ($\sim$2{,}000 questions, 197K--534K-token contexts;
