@@ -82,5 +82,12 @@ def reme_ingest_and_search(inst: dict, *, reme_bin: str, reme_config: str,
         # bench; the marker makes ingest idempotent across the two entry points.
         reme_run_job(reme_bin, reme_config, "auto_memory", ws, env)
         marker.touch()
+    # bm25_search reads the file_store keyword index, which auto_memory does
+    # NOT build — update_index does (clear+rebuild over daily notes, local-only,
+    # ~seconds). Run it at question time so retrieval never sees an empty index
+    # regardless of which entry point ingested this workspace. Found live
+    # 2026-07-17: bm25_search returned 0 bytes on a fully ingested workspace,
+    # which would have silently scored the reme arm at blind level.
+    reme_run_job(reme_bin, reme_config, "update_index", ws, env)
     return reme_run_job(reme_bin, reme_config, retrieval_job, ws, env,
                         job_args={"query": inst["question"], "limit": k})

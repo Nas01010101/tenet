@@ -63,6 +63,15 @@ jobs:
         config_keys: [daily_dir]
       - backend: lme_auto_memory_step
         agent_wrapper: lme_memory
+        # Cap the step's internal fan-out (package default: 60 concurrent calls
+        # with infinite retry). At 60, requests sit queued server-side for
+        # minutes and the pooled connections wedge with no read-timeout
+        # (observed twice on 2026-07-17: notes stop, sockets ESTABLISHED but
+        # idle, fresh single calls answer in ~1.5s). At 8, nothing queues.
+        # Bounded retries turn a deterministic per-session failure into a
+        # failed_extracts entry instead of an infinite backoff loop.
+        concurrency: 8
+        retry_max_attempts: 5
 
   update_index:
     backend: base
