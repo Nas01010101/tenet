@@ -284,14 +284,22 @@ components:
       # default (qwen3.7-plus) for this tier.
       backend: ${LLM_BACKEND:-openai}
       model: ${LME_DISTILL_MODEL:-qwen-flash}
-      stream: true
+      # stream:false — a silently-dropped connection mid-stream has no read
+      # timeout and hangs the extraction forever (observed 2026-07-17: ingest
+      # froze at 20/45 notes, 0 open sockets, no error logged). Extraction
+      # outputs are small structured JSON; streaming buys nothing here.
+      stream: false
       context_size: 1000000
       max_retries: 3
       credential:
         api_key: ${LLM_API_KEY:-}
         base_url: ${LLM_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
       parameters:
-        max_tokens: 65536
+        # qwen-flash rejects max_tokens > 32768 with an instant 400
+        # (InternalError.Algo.InvalidParameter) — ReMe then retries forever,
+        # which presented as an ingest hang. Verified 2026-07-17 against the
+        # dashscope-intl endpoint; qwen3.7-plus (default tier) accepts 65536.
+        max_tokens: 32768
 
   agent_wrapper:
     default:

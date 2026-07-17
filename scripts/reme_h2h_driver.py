@@ -52,7 +52,7 @@ def reme_write_workspace(inst: dict, root: Path) -> Path:
 
 
 def reme_run_job(reme_bin: str, config_path: str, job: str, workspace: Path,
-                  env: dict, job_args: dict | None = None, timeout: int = 900) -> str:
+                  env: dict, job_args: dict | None = None, timeout: int = 2400) -> str:
     args = [reme_bin, "start", f"job={job}", f"config={config_path}",
             f"workspace_dir={workspace}"]
     for k, v in (job_args or {}).items():
@@ -75,6 +75,12 @@ def reme_ingest_and_search(inst: dict, *, reme_bin: str, reme_config: str,
         script = dry_script if dry_script is not None else []
         return script.pop(0) if script else "[dry-run] reme context stub"
     ws = reme_write_workspace(inst, workspace_root)
-    reme_run_job(reme_bin, reme_config, "auto_memory", ws, env)
+    marker = ws / ".ingested"
+    if not marker.exists():
+        # auto_memory = one LLM call per haystack session (~50/question) — the
+        # slow step. scripts/reme_preingest.py runs it in parallel ahead of the
+        # bench; the marker makes ingest idempotent across the two entry points.
+        reme_run_job(reme_bin, reme_config, "auto_memory", ws, env)
+        marker.touch()
     return reme_run_job(reme_bin, reme_config, retrieval_job, ws, env,
                         job_args={"query": inst["question"], "limit": k})
