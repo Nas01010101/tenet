@@ -201,14 +201,25 @@ def eval_all_arms(inst: dict, *, k: int, embedder, arms: tuple[str, ...],
         row["blind_ok"], row["blind_pred"] = ok, pred
 
     if "reme" in arms:
-        context = reme_ingest_and_search(
-            inst, dry_run=dry_run, dry_script=dry_script, **reme_kwargs, k=k)
-        # ReMe's auto_memory distills every session too (reme/steps/benchmark/
-        # lme/auto_memory.py) — same full-haystack input volume as Tenet's
-        # distiller, at the qwen-flash tier we pinned in reme_h2h_config.yaml.
-        cost.add("reme", DISTILL_MODEL_REME, full_chars, full_chars * 0.12)
-        ok, pred = qa_score(context, inst, cost, "reme", model=ANSWER_MODEL)
-        row["reme_ok"], row["reme_pred"] = ok, pred
+        try:
+            context = reme_ingest_and_search(
+                inst, dry_run=dry_run, dry_script=dry_script, **reme_kwargs, k=k)
+        except Exception as e:  # noqa: BLE001 — one flaky subprocess must not
+            # kill an unattended multi-hour run. Same contract as qa_score:
+            # an infrastructure failure is EXCLUDED (ok=None), never scored
+            # wrong. The row still writes, so this qid won't re-try the reme
+            # arm on resume — visible in the JSONL via reme_error.
+            print(f"  reme arm failed for {inst['question_id']}: {str(e)[:200]}",
+                  flush=True)
+            row["reme_ok"], row["reme_pred"] = None, None
+            row["reme_error"] = str(e)[:500]
+        else:
+            # ReMe's auto_memory distills every session too (reme/steps/benchmark/
+            # lme/auto_memory.py) — same full-haystack input volume as Tenet's
+            # distiller, at the qwen-flash tier we pinned in reme_h2h_config.yaml.
+            cost.add("reme", DISTILL_MODEL_REME, full_chars, full_chars * 0.12)
+            ok, pred = qa_score(context, inst, cost, "reme", model=ANSWER_MODEL)
+            row["reme_ok"], row["reme_pred"] = ok, pred
 
     return row
 
@@ -366,7 +377,12 @@ def run(args) -> None:
         for line in out_path.read_text().splitlines():
             if line.strip():
                 try:
-                    done.add(json.loads(line)["qid"])
+                    d = json.loads(line)
+                    # qa_error rows are transient API failures with NO arm
+                    # results — leaving them in `done` would drop the question
+                    # from the study forever on every resume. Re-run them.
+                    if not d.get("qa_error"):
+                        done.add(d["qid"])
                 except (json.JSONDecodeError, KeyError):
                     continue
         print(f"resume: {len(done)} question(s) already done in {out_path}")
@@ -417,7 +433,14 @@ def run(args) -> None:
     # for the summary, so a resumed run reports over everything done so far.
     all_rows = rows
     if done:
-        all_rows = [json.loads(line) for line in out_path.read_text().splitlines() if line.strip()]
+        # Last row per qid wins: a re-run after a qa_error leaves both the
+        # error row and the fresh row in the file; only the fresh one counts.
+        by_qid = {}
+        for line in out_path.read_text().splitlines():
+            if line.strip():
+                d = json.loads(line)
+                by_qid[d["qid"]] = d
+        all_rows = list(by_qid.values())
     summarize(all_rows, arms)
     print(f"\nspend this run:\n{cost.report()}")
     print(f"wall={time.time()-t0:.0f}s" + ("  (stopped early: budget cap)" if stopped_early else ""))
