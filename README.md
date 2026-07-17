@@ -99,10 +99,12 @@ Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](doc
 | LongMemEval_S (n=100, `qwen3.7-plus` Qwen-Cloud reader) | QA accuracy | **81.0%** | ≥ matched RAG 79.0% · **100%** recall@10 · **98.5% less context** than full | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
 | Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
 
-<sup>FactConsolidation raw evidence: [`docs/factcon_results.json`](docs/factcon_results.json) — a bounded
-n=40/axis reproduction (session wall-clock limited, not $ — see the file's `config.note`) lands MH
-consistent with the 86.5/30.2 pooled claim above but SH lower (70.0% [54.6, 81.9] vs 86.5%); flagged as
-an unresolved discrepancy, not silently corrected or hidden — see the file's `discrepancy_note`.</sup>
+<sup>FactConsolidation raw evidence: [`docs/factcon_results.json`](docs/factcon_results.json) — a full
+n=100/cell (n=800) reproduction (2026-07-17, $0: local reader + embeddings + zero-LLM keys) matches the
+published numbers on every cell within 1pt: SH pooled 86.5 [82.8, 89.5] exactly, MH pooled 30.0 vs 30.2.
+An earlier bounded n=40 spot-check had flagged SH as an unresolved discrepancy; that was sampling noise.
+The file also carries a reading-mode ablation (official-prompt reading: SH 66.8 / MH 7.5 — same memory,
+same reader model; the documented `--tenet-read decompose` is what the claim requires).</sup>
 
 Honest weak spots (multi-session synthesis, multi-hop chaining) are reported, not
 hidden — full tables and reproduction commands: [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
