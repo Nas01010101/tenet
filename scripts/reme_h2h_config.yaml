@@ -278,7 +278,12 @@ components:
       # memory system, not the backbone, is the only variable (design doc §2.1).
       backend: ${LLM_BACKEND:-openai}
       model: ${LLM_MODEL_NAME:-qwen3.7-plus}
-      stream: true
+      # stream:false for the same reason as the plus tier below — a dropped
+      # streaming connection with no read-timeout hangs the whole job silently
+      # (observed live 2026-07-17 during ingest). The default tier is only
+      # exercised by the agentic answer/review steps, so this cannot change
+      # any already-cached ingest artifact.
+      stream: false
       context_size: 1000000
       max_retries: 3
       credential:
