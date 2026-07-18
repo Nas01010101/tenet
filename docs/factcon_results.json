@@ -1,6 +1,6 @@
 {
   "config": {
-    "benchmark": "MAB FactConsolidation (MemoryAgentBench, ICLR 2026, arXiv:2507.05257)",
+    "benchmark": "MAB FactConsolidation (MemoryAgentBench, arXiv:2507.05257)",
     "reproduce": "LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local python scripts/bench_factcon.py --qpc 100 --tenet-read decompose --keys heuristic",
     "reader": "local qwen2.5:7b (ollama)",
     "embedder": "local bge-small (sentence-transformers)",

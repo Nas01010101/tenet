@@ -168,7 +168,7 @@ Supersession · time-travel (`recall(as_of=…)`) · forgetting sweep · context
 core value directly.
 
 ## 6. MAB FactConsolidation — the standardized supersession benchmark (`scripts/bench_factcon.py`)
-MemoryAgentBench (ICLR 2026, arXiv:2507.05257) FactConsolidation: serial-numbered facts
+MemoryAgentBench (arXiv:2507.05257) FactConsolidation: serial-numbered facts
 with counterfactual updates; questions require the CURRENT value. Deterministic
 **SubEM** metric and the **official reader prompt**, both copied verbatim from the MAB
 repo. All 800 questions (100 × 8 cells), Wilson 95% CIs, 0 API-error exclusions.
@@ -194,7 +194,7 @@ is a **local qwen2.5:7b** — a deliberately weak, laptop-class backbone.
 
 - **Single-hop: 86.5% pooled — above the published mini-tier SOTA (78.0; our CI excludes
   it) despite a weaker backbone**, and above every system in the original MAB table at
-  every length (all 22 ≤60%; Zep 7%, Mem0 18%, MemGPT 28%). Per-cell we lead at
+  every length (every memory system ≤60%; Zep 7%, Mem0 18%, MemGPT 28%). Per-cell we lead at
   6K/32K/64K; their mini edges 262K by 1 point.
 - **Multi-hop: 30.2% pooled — exactly ties the published mini-tier SOTA** (their CAR
   pipeline), again on the weaker backbone; every original-table system is ≤7%.

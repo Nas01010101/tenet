@@ -17,7 +17,7 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 The 90%+ vendor numbers in the LongMemEval row below are **self-reported and do not
 survive independent reproduction.** Two independent harnesses (Maximem, Bench'd, 2026)
 found:
-- **Mem0** claims **93.4%** LongMemEval; reproduces at **73.8% hosted / 32.4% OSS** — a
+- **Mem0** claims **93.4%** LongMemEval; reproduces at **73.8%** on the standardized harness (57.5% before its 2026-04 update), with production monitoring showing ~49% effective accuracy at 30 days — a
   20–60-point gap.
 - **LoCoMo**'s answer key is **6.4% wrong** and its LLM judge **accepts up to 63% of
   deliberately incorrect answers** — so LoCoMo scores are structurally unreliable.

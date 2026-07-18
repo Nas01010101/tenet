@@ -116,13 +116,12 @@ half-life), not a full close of the gap (`docs/BENCHMARK.md` §9–9.1).
 ## Accomplishments that we're proud of
 - **Numbers you can actually reproduce — in a field where that's rare.** Independent 2026
   audits (Maximem, Bench'd) found the headline agent-memory scores don't survive
-  reproduction: Mem0 claims 93.4% on LongMemEval but reproduces at **73.8% hosted / 32.4%
-  OSS**, and LoCoMo's own answer key is 6.4% wrong with a judge that accepts up to 63% of
+  reproduction: Mem0 claims 93.4% on LongMemEval but reproduces at **73.8%** (57.5% pre-update; ~49% effective in production), and LoCoMo's own answer key is 6.4% wrong with a judge that accepts up to 63% of
   wrong answers. Tenet is built the opposite way: **every number carries a Wilson 95% CI**,
   we **ship four flags default-OFF because we measured them as no-benefit** (`RAW_RECALL`,
   `AGG_READER`, `RETRACT`, `CONSOLIDATE`), and we **publicly falsified our own pre-registered
   churn claim** before fixing it. Every result reproduces from one command.
-- **Beats published SOTA on the standardized benchmark.** MemoryAgentBench (ICLR 2026)
+- **Beats published SOTA on the standardized benchmark.** MemoryAgentBench (arXiv:2507.05257)
   FactConsolidation single-hop: **86.5%** [82.8, 89.5], above the published mini-tier SOTA
   of 78.0 — on a *weaker* local-7B backbone with zero-LLM, deterministic ingestion; ties
   multi-hop SOTA (30.2). All 800 questions, official metric + prompt verbatim, Wilson CIs.
@@ -132,7 +131,7 @@ half-life), not a full close of the gap (`docs/BENCHMARK.md` §9–9.1).
   benchmark (a fact updated 2→12 times), naive RAG collapses 100%→50% past 8 updates;
   Tenet holds 100% throughout.
 - **MAB Accurate-Retrieval: 59.3 average, 2nd of all published systems** (20+ points
-  above Mem0/Zep/MemGPT), and beats the field outright on EventQA (70.7 vs 67.6).
+  above Mem0/Zep/MemGPT), and beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6).
 - Best accuracy-per-token on LongMemEval_S (49.2 vs RAG's 27.4 per 1k tokens).
 - **Beats ReMe — Alibaba's own agent-memory framework — head-to-head, 67% vs 34%** on
   LongMemEval_S n=100, running ReMe's released pipeline end-to-end as a black box

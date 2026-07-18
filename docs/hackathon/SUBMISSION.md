@@ -48,13 +48,13 @@ for distillation, `qwen3.7-plus` for reading — all via the OpenAI-compatible D
 (Alibaba Cloud Model Studio) API. Optional Alibaba Cloud OSS snapshots for durability.
 
 **Evaluation — beats published SOTA on the standardized benchmark.** On
-**MemoryAgentBench** (ICLR 2026) **FactConsolidation** — the conflict-resolution axis where
+**MemoryAgentBench** (arXiv:2507.05257) **FactConsolidation** — the conflict-resolution axis where
 famous systems collapse (Zep 7%, Mem0 18%, MemGPT 28%) — Tenet scores **86.5% single-hop,
 above the published state of the art (78.0)**, and ties multi-hop SOTA (30.2), using a
 *weaker* backbone and zero-LLM ingestion (official metric + prompt verbatim, all 800
 questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
 published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
-Mem0/Zep/MemGPT) and **beats the field on EventQA (70.7 vs 67.6)**. We also reimplemented
+Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. We also reimplemented
 four rival paper methods (Mem0, CAR, HippoRAG-v2, MemAgent) in the same harness: **Tenet
 leads every arm on both axes**. On our controlled knowledge-churn *primitive* (one templated
 attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the harsher
@@ -154,7 +154,7 @@ with a 2-page paper + full preprint in `paper/`.
   claimed here.
 
 ### Impact (25%)
-- **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (ICLR 2026)
+- **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (arXiv:2507.05257)
   FactConsolidation single-hop **86.5% pooled**, above published mini-tier SOTA (78.0),
   on a *weaker* local-7B backbone with zero-LLM ingestion — `docs/BENCHMARK.md` §6.
 - **Same-harness reproduction of four published methods** (CAR, Mem0-style,
