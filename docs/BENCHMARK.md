@@ -1027,9 +1027,9 @@ exercise ReMe's own answering agent (`agentic_answer`: a ReAct loop with
 its own eval pipeline's job #4). To close that objection we also ran ReMe
 end-to-end as shipped on the same ingested workspaces, with its vector index
 enabled (`LME_EMBEDDING_STORE=default`) and its own agent producing the
-answer, judged by the same judge: **36.7%** [27.9, 46.6] (36/98 scored; 2
-subprocess timeouts unscored) — statistically indistinguishable from the
-main protocol's 34.0% (McNemar 6/4, p=0.75), still behind Tenet (6/36,
+answer, judged by the same judge: **37.0%** [28.2, 46.8] (37/100; the two initial
+subprocess timeouts re-ran clean at a doubled timeout) — statistically
+indistinguishable from the main protocol's 34.0% (McNemar 7/4, p=0.55), still behind Tenet (6/36,
 p≈2.8×10⁻⁶) and matched RAG (7/34, p≈2.5×10⁻⁵). Full agent trajectories are
 preserved per workspace (`mem_session/agentscope/*.jsonl`); a typical failure
 shows the agent *retrieving* the deciding note and still answering "not

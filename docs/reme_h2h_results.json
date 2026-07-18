@@ -192,19 +192,19 @@
  },
  "supplementary_reme_agentic": {
   "what": "ReMe's OWN answering agent end-to-end (agentic_answer job: ReAct, vector_search + bm25_search + python_execute + session-pivot, max_iters 40, LME_EMBEDDING_STORE=default so its vector index is enabled) on the same ingested workspaces, judged by the same qa_judge. Closes the protocol objection that the main harness's single-shot bm25+shared-reader underuses ReMe.",
-  "acc": 0.367,
-  "correct": 36,
-  "n": 98,
+  "acc": 0.37,
+  "correct": 37,
+  "n": 100,
   "wilson95": [
-   0.279,
-   0.466
+   0.282,
+   0.468
   ],
-  "unscored_subprocess_errors": 2,
+  "unscored_subprocess_errors": 0,
   "mcnemar": {
    "agentic_vs_reme_bm25": {
-    "agentic_only": 6,
+    "agentic_only": 7,
     "bm25_only": 4,
-    "p": 0.754,
+    "p": 0.549,
     "verdict": "statistically indistinguishable \u2014 the 34% was not a reader artifact"
    },
    "agentic_vs_tenet": {
@@ -219,6 +219,7 @@
    }
   },
   "rows": "docs/reme_agentic_rows.jsonl (trajectories preserved per workspace in mem_session/)",
-  "date": "2026-07-18"
+  "date": "2026-07-18",
+  "note_retry": "2 initial 900s subprocess timeouts re-run at 1800s; both scored"
  }
 }
