@@ -16,8 +16,7 @@ a strong RAG memory falls from **100% to 50%** current-value accuracy as one fac
 updated 2→12 times — and the collapse is identical under `gpt-4o-mini` and `gpt-4o`
 readers, so it is *structural*, not reader weakness. The 2026 field agrees this axis is
 where famous systems break: on MemoryAgentBench's conflict-resolution split, the original
-table reports **Zep 7%, Mem0 18%, MemGPT 28%** single-hop, and <=7% multi-hop for all 22
-systems evaluated.
+table reports **Zep 7%, Mem0 18%, MemGPT 28%** single-hop, and <=7% multi-hop for every memory system in the table (long-context reasoning baselines reach 28) evaluated.
 
 ## Approach: a bi-temporal belief state, with no LLM in the read path
 
@@ -52,13 +51,15 @@ planted non-memoryless structure (NLL 2.76→1.99, 5 seeds).
 
 ## Results (all reproducible: one CLI command per number)
 
-**Standardized conflict resolution — MemoryAgentBench FactConsolidation (ICLR 2026), all
+**Standardized conflict resolution — MemoryAgentBench FactConsolidation (arXiv:2507.05257), all
 800 questions, official SubEM + prompt, Wilson 95% CIs.** With deterministic zero-LLM keys
 and a deliberately weak local 7B backbone: single-hop **86.5** [82.8, 89.5] — above the
 published gpt-4o-mini-tier SOTA (78.0, CI excludes) — and multi-hop **30.2**, tying it;
 same-harness naive-RAG scores 47.8 / 4.5. In a backbone-matched reimplementation of four
 published mechanisms (CAR, Mem0-style, HippoRAG-v2-style, MemAgent-style), Tenet leads
-every arm on both axes.
+every arm on both axes. Head-to-head against a released framework run black-box through
+its own pipeline (ReMe, reme-ai 0.4.1.1; identical Qwen reader/judge): **Tenet 67.0% vs
+ReMe 34.0%** on LongMemEval_S n=100, McNemar p ≈ 2×10⁻⁶ (matched RAG 64.0, blind 0.0).
 
 **MemoryAgentBench Accurate-Retrieval** (~2,000 questions, 197K–534K-token contexts,
 official metrics, matched reader): average **59.3** — second only to HippoRAG-v2 (65.1,

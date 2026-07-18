@@ -48,13 +48,13 @@ for distillation, `qwen3.7-plus` for reading — all via the OpenAI-compatible D
 (Alibaba Cloud Model Studio) API. Optional Alibaba Cloud OSS snapshots for durability.
 
 **Evaluation — beats published SOTA on the standardized benchmark.** On
-**MemoryAgentBench** (ICLR 2026) **FactConsolidation** — the conflict-resolution axis where
+**MemoryAgentBench** (arXiv:2507.05257) **FactConsolidation** — the conflict-resolution axis where
 famous systems collapse (Zep 7%, Mem0 18%, MemGPT 28%) — Tenet scores **86.5% single-hop,
 above the published state of the art (78.0)**, and ties multi-hop SOTA (30.2), using a
 *weaker* backbone and zero-LLM ingestion (official metric + prompt verbatim, all 800
 questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
 published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
-Mem0/Zep/MemGPT) and **beats the field on EventQA (70.7 vs 67.6)**. We also reimplemented
+Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. We also reimplemented
 four rival paper methods (Mem0, CAR, HippoRAG-v2, MemAgent) in the same harness: **Tenet
 leads every arm on both axes**. On our controlled knowledge-churn *primitive* (one templated
 attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the harsher
@@ -62,12 +62,16 @@ attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the
 Tenet from worst-arm to 98/92/82 at U=2/8/32, with delete-outright consolidation still
 leading at extreme churn (`docs/BENCHMARK.md` §9). On
 LongMemEval_S Tenet has the best accuracy-per-token (49.2 vs RAG 27.4 per 1k tokens).
+And in a direct head-to-head against **ReMe — Alibaba's own agent-memory framework, run
+as a black box through its own released pipeline** — Tenet scores **67% vs ReMe's 34%**
+on LongMemEval_S n=100 (same Qwen reader/judge for every arm, McNemar p ≈ 2×10⁻⁶,
+Tenet ahead on every question type; `docs/BENCHMARK.md` §15).
 Honest weak spots — multi-session synthesis and multi-hop chaining — are reported, not
 hidden. Every number reproduces from one documented command: `docs/BENCHMARK.md`.
 
 **What's novel.** Memory as a *self-consistent belief state* instead of a document log:
 ingestion-time bi-temporal supersession, a belief–evidence consistency rule (stale raw
-evidence of a superseded belief is retired — no prior system does this), surprise-gated
+evidence of a superseded belief is retired — none of the systems we compare to documents this mechanism), surprise-gated
 writes, and an LLM-free read path — shipped as a pip package (`pip install tenet-memory`),
 a polished CLI (`tenet chat/remember/recall/stats`), an MCP server, and an HTTP API,
 with a 2-page paper + full preprint in `paper/`.
@@ -150,7 +154,7 @@ with a 2-page paper + full preprint in `paper/`.
   claimed here.
 
 ### Impact (25%)
-- **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (ICLR 2026)
+- **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (arXiv:2507.05257)
   FactConsolidation single-hop **86.5% pooled**, above published mini-tier SOTA (78.0),
   on a *weaker* local-7B backbone with zero-LLM ingestion — `docs/BENCHMARK.md` §6.
 - **Same-harness reproduction of four published methods** (CAR, Mem0-style,

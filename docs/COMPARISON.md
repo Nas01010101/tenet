@@ -17,7 +17,7 @@ design. We therefore compare Tenet only to **our own RAG under identical setting
 The 90%+ vendor numbers in the LongMemEval row below are **self-reported and do not
 survive independent reproduction.** Two independent harnesses (Maximem, Bench'd, 2026)
 found:
-- **Mem0** claims **93.4%** LongMemEval; reproduces at **73.8% hosted / 32.4% OSS** — a
+- **Mem0** claims **93.4%** LongMemEval; reproduces at **73.8%** on the standardized harness (57.5% before its 2026-04 update), with production monitoring showing ~49% effective accuracy at 30 days — a
   20–60-point gap.
 - **LoCoMo**'s answer key is **6.4% wrong** and its LLM judge **accepts up to 63% of
   deliberately incorrect answers** — so LoCoMo scores are structurally unreliable.
@@ -65,7 +65,7 @@ design. Recall@10 = 97.5%. Efficiency point = 52.5% at half the tokens (best acc
 ## Where Tenet sits
 - **Architecturally closest to Zep/Graphiti** (bi-temporal + supersession + MCP + no-LLM
   reads) but **lighter**: no knowledge graph. Mem0 *removed* its graph after finding it
-  ran 3× slower / 2× tokens for a thin gain, so Tenet's vector+bi-temporal substrate is a
+  costs ~1.8× p95 latency for a ~2% quality gain (their own report), so Tenet's vector+bi-temporal substrate is a
   deliberate, evidence-backed choice.
 - **Zep-without-the-graph-DB.** Zep/Graphiti needs a graph database (Neo4j / FalkorDB / Kuzu)
   running to get bi-temporal correctness; Tenet gets the same temporal correctness from

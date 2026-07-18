@@ -86,7 +86,7 @@ take toward perception [Friston]; we bring it to agent memory.
 
 **Retrieval memory.** Mem0 [Chhikara 2025] distills salient facts at write time over a
 vector store with entity links; it attaches only a *creation* timestamp and, notably,
-*removed* its graph variant after finding it 3× slower / 2× tokens for a thin gain —
+prices its own graph variant at ~1.8× p95 latency for a ~2% quality gain —
 evidence we take seriously in choosing a light vector substrate. LongMemEval [Wu 2024]
 is the standard long-horizon benchmark; its V2 [Wu 2026] adds a *latency-aware* metric,
 signalling a field shift toward accuracy *per cost*, which our per-token results target.
@@ -331,7 +331,7 @@ discards **15% of observations** as redundant with **no accuracy change**, yield
 bounded store where RAG grows unboundedly.
 
 **4.5 Standardized conflict resolution — MemoryAgentBench FactConsolidation.** On the
-ICLR 2026 conflict-resolution benchmark [Hu 2026] (SubEM metric and official reader prompt
+MemoryAgentBench conflict-resolution benchmark [Hu 2026] (SubEM metric and official reader prompt
 verbatim; all 800 questions; Wilson 95% CIs), ingestion-time supersession with **fully
 deterministic, zero-LLM keys** and a deliberately weak **local 7B backbone** scores:
 
@@ -526,7 +526,7 @@ belief-state view also yields time-travel and principled forgetting for free. We
 [Rasmussen 2025] Zep: A Temporal Knowledge Graph Architecture for Agent Memory. arXiv:2501.13956.
 [Packer 2023] MemGPT: Towards LLMs as Operating Systems. arXiv:2310.08560.
 [Xu 2025] A-MEM: Agentic Memory for LLM Agents. arXiv:2502.12110.
-[Hu 2026] MemoryAgentBench: Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions. arXiv:2507.05257 (ICLR 2026).
+[Hu 2026] MemoryAgentBench: Evaluating Memory in LLM Agents via Incremental Multi-Turn Interactions. arXiv:2507.05257, 2025.
 
 [Gutiérrez 2025] From RAG to Memory: Non-Parametric Continual Learning for Large Language Models (HippoRAG 2). arXiv:2502.14802.
 
@@ -542,7 +542,7 @@ belief-state view also yields time-travel and principled forgetting for free. We
 [NapMem 2026] NapMem: Memory as a Structured Action Space for Long-Horizon Agents. arXiv:2607.05794 (Qwen Large Model Application Team, Alibaba).
 [MemFlow 2026] MemFlow: Training-Free Intent-Routed Memory Orchestration with LLM Validation. arXiv:2605.03312.
 [MemReader 2026] MemReader: Active Extraction for Agent Memory Construction. arXiv:2604.07877.
-[Mem-alpha 2026] Mem-α: Reinforcement-Learned Memory Construction for LLM Agents. OpenReview (ICLR 2026).
+[Mem-alpha 2026] Mem-α: Reinforcement-Learned Memory Construction for LLM Agents. OpenReview, 2026.
 [MemCog 2026] MemCog: Cognitively-Inspired Active Navigation of Agent Memory. arXiv:2605.28046. (Affiliation unverified.)
 [Friston] The free-energy principle: a unified brain theory? Nat. Rev. Neurosci., 2010.
 

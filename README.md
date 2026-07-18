@@ -83,7 +83,7 @@ Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](doc
 
 > **Reproducibility is the pitch.** Independent 2026 audits found the field's headline
 > numbers don't survive reproduction — Mem0 claims 93.4% on LongMemEval but reproduces at
-> [73.8% hosted / 32.4% OSS](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);
+> [73.8% on the standardized harness](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);
 > LoCoMo's answer key is 6.4% wrong. Tenet reports **every** number with a Wilson 95% CI,
 > ships **five flags default-OFF because we measured them as no-benefit**, and **falsified
 > its own churn claim in public** before fixing it. Built **100% on Qwen Cloud** (no OpenAI
@@ -93,16 +93,31 @@ Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](doc
 
 | benchmark | metric | Tenet | comparison | source |
 |---|---|---:|---:|---|
-| MemoryAgentBench FactConsolidation (ICLR 2026), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MemoryAgentBench FactConsolidation (arXiv:2507.05257), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
 | LongMemEval_S (n=100, `qwen3.7-plus` Qwen-Cloud reader) | QA accuracy | **81.0%** | ≥ matched RAG 79.0% · **100%** recall@10 · **98.5% less context** than full | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
 | Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
+| Head-to-head vs **ReMe** (Alibaba's memory framework), LongMemEval_S n=100 | QA accuracy, same reader/judge | **67.0%** [57.3, 75.4] | ReMe (own `auto_memory`+BM25 pipeline) 34.0% · matched RAG 64.0% · blind 0.0% — McNemar tenet-vs-ReMe p≈2×10⁻⁶ | [`reme_h2h_results.json`](docs/reme_h2h_results.json) |
 
-<sup>FactConsolidation raw evidence: [`docs/factcon_results.json`](docs/factcon_results.json) — a bounded
-n=40/axis reproduction (session wall-clock limited, not $ — see the file's `config.note`) lands MH
-consistent with the 86.5/30.2 pooled claim above but SH lower (70.0% [54.6, 81.9] vs 86.5%); flagged as
-an unresolved discrepancy, not silently corrected or hidden — see the file's `discrepancy_note`.</sup>
+<sup>FactConsolidation raw evidence: [`docs/factcon_results.json`](docs/factcon_results.json) — a full
+n=100/cell (n=800) reproduction (2026-07-17, $0: local reader + embeddings + zero-LLM keys) matches the
+published numbers on every cell within 1pt: SH pooled 86.5 [82.8, 89.5] exactly, MH pooled 30.0 vs 30.2.
+An earlier bounded n=40 spot-check had flagged SH as an unresolved discrepancy; that was sampling noise.
+The file also carries a reading-mode ablation (official-prompt reading: SH 66.8 / MH 7.5 — same memory,
+same reader model; the documented `--tenet-read decompose` is what the claim requires).</sup>
+
+<sup>ReMe head-to-head (2026-07-17, [`docs/reme_h2h_results.json`](docs/reme_h2h_results.json)): both
+memory systems ingest the same full ~115k-token haystacks with flash-tier distillers and answer through
+the identical `qwen3.7-plus` reader+judge — a within-run comparison (absolute numbers aren't comparable
+to the §1–2 row, which uses a different protocol). ReMe runs its own released pipeline end-to-end
+(`auto_memory` session notes → `update_index` → `bm25_search`, reme-ai 0.4.1.1 in an isolated venv);
+we fixed four of its runtime defects to get it running fairly (documented in the artifact), and a
+supplementary run of ReMe's own answering agent as-shipped (vector+BM25 ReAct loop) scores a
+statistically indistinguishable 37.0% (p=0.55) — the gap is not a protocol artifact. Tenet
+beats ReMe on every question type; tenet-vs-RAG is +3pp (not significant at n=100). ReMe below
+matched RAG (p≈9×10⁻⁶) is ReMe's result, not our tuning: lossy note distillation + keyword-only
+retrieval discards detail that plain chunk retrieval keeps.</sup>
 
 Honest weak spots (multi-session synthesis, multi-hop chaining) are reported, not
 hidden — full tables and reproduction commands: [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
@@ -351,10 +366,10 @@ Tenet is a **frontier, not a point** — one `expand` knob trades tokens for acc
 - **Honest:** the one category still behind RAG is multi-session synthesis (42.9 vs 57.1, up
   from 28.6). We report it. *(Eval off-Qwen, one seed, reader noise ≈±5–7pp; shipped system uses Qwen Cloud.)*
 
-### 🏆 Standardized: MemoryAgentBench FactConsolidation (ICLR 2026, all 800 questions)
+### 🏆 Standardized: MemoryAgentBench FactConsolidation (arXiv:2507.05257), all 800 questions)
 
 Conflict resolution — the axis famous memory systems fail hardest (original table: **Zep 7%,
-Mem0 18%, MemGPT 28%** single-hop; **≤7%** multi-hop for all 22 systems):
+Mem0 18%, MemGPT 28%** single-hop; **≤7%** multi-hop for every memory system in the table; long-context reasoning baselines reach 28):
 
 | pooled 6K–262K | naive-RAG | **Tenet** | published SOTA (mini / gpt-4o) |
 |---|---:|---:|---:|
@@ -370,7 +385,7 @@ Raw evidence + an honest flagged discrepancy from a smaller reproduction: [`docs
 per-benchmark metrics, matched gpt-4o-mini reader): AR average **59.3** — second only to
 HippoRAG-v2 (65.1, which runs LLM OpenIE over every context token; Tenet ingests with
 **embeddings only**), 20+ points above Mem0 (32.6) / Zep (37.5) / MemGPT, and **beats the
-field on EventQA (70.7 vs 67.6, CI excludes)**. RULER MH is the honest loss (45 vs 66).
+published memory frameworks on EventQA (70.7 vs 67.6, CI excludes)**. RULER MH is the honest loss (45 vs 66).
 Details: [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §7.
 
 ## The agent

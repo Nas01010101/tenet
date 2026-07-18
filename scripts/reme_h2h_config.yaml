@@ -63,6 +63,15 @@ jobs:
         config_keys: [daily_dir]
       - backend: lme_auto_memory_step
         agent_wrapper: lme_memory
+        # Cap the step's internal fan-out (package default: 60 concurrent calls
+        # with infinite retry). At 60, requests sit queued server-side for
+        # minutes and the pooled connections wedge with no read-timeout
+        # (observed twice on 2026-07-17: notes stop, sockets ESTABLISHED but
+        # idle, fresh single calls answer in ~1.5s). At 8, nothing queues.
+        # Bounded retries turn a deterministic per-session failure into a
+        # failed_extracts entry instead of an infinite backoff loop.
+        concurrency: 8
+        retry_max_attempts: 5
 
   update_index:
     backend: base
@@ -269,7 +278,12 @@ components:
       # memory system, not the backbone, is the only variable (design doc §2.1).
       backend: ${LLM_BACKEND:-openai}
       model: ${LLM_MODEL_NAME:-qwen3.7-plus}
-      stream: true
+      # stream:false for the same reason as the plus tier below — a dropped
+      # streaming connection with no read-timeout hangs the whole job silently
+      # (observed live 2026-07-17 during ingest). The default tier is only
+      # exercised by the agentic answer/review steps, so this cannot change
+      # any already-cached ingest artifact.
+      stream: false
       context_size: 1000000
       max_retries: 3
       credential:
@@ -284,14 +298,22 @@ components:
       # default (qwen3.7-plus) for this tier.
       backend: ${LLM_BACKEND:-openai}
       model: ${LME_DISTILL_MODEL:-qwen-flash}
-      stream: true
+      # stream:false — a silently-dropped connection mid-stream has no read
+      # timeout and hangs the extraction forever (observed 2026-07-17: ingest
+      # froze at 20/45 notes, 0 open sockets, no error logged). Extraction
+      # outputs are small structured JSON; streaming buys nothing here.
+      stream: false
       context_size: 1000000
       max_retries: 3
       credential:
         api_key: ${LLM_API_KEY:-}
         base_url: ${LLM_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
       parameters:
-        max_tokens: 65536
+        # qwen-flash rejects max_tokens > 32768 with an instant 400
+        # (InternalError.Algo.InvalidParameter) — ReMe then retries forever,
+        # which presented as an ingest hang. Verified 2026-07-17 against the
+        # dashscope-intl endpoint; qwen3.7-plus (default tier) accepts 65536.
+        max_tokens: 32768
 
   agent_wrapper:
     default:

@@ -59,7 +59,7 @@ that claim on a harsher *paraphrased*, multi-attribute variant — ChurnBench, `
 98/92/82 at U=2/8/32. We report the falsification and the partial fix in full.)
 
 For a standardized comparison against the published field we used
-**MemoryAgentBench's FactConsolidation** (ICLR 2026, arXiv:2507.05257): the official
+**MemoryAgentBench's FactConsolidation** (arXiv:2507.05257): the official
 **SubEM** metric (deterministic substring match, not an LLM judge), the official
 reader prompt copied verbatim, and **Wilson 95% confidence intervals** on every
 score — all 800 questions, zero exclusions. Single-hop: **86.5% pooled, CI [82.8,

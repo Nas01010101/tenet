@@ -84,8 +84,19 @@ _JUDGE_SYS = ("Grade whether the model answer matches the gold answer for the qu
 
 def qa_answer(context, question, qdate):
     out = _qa_chat(_ANS_SYS, f"Question date: {qdate}\n\nMemory:\n{context}\n\nQuestion: {question}",
-                   max_tokens=800)  # CoN needs room for notes + reasoning
-    return out.split("ANSWER:")[-1].strip() if "ANSWER:" in out else out
+                   max_tokens=1600)  # CoN needs room for notes + reasoning
+    if "ANSWER:" in out:
+        return out.split("ANSWER:")[-1].strip()
+    # Deliberation can exceed any fixed cap on ambiguous memories (observed
+    # live 2026-07-17 at both 800 and 1600 tokens), and returning the raw
+    # truncated scaffold as the prediction penalizes context-rich arms —
+    # exactly the ones memory benchmarks compare. Repair with one bounded
+    # follow-up that extracts the final answer from the deliberation so far.
+    fin = _qa_chat("Reply with ONLY the final short answer to the question, based on the notes "
+                   "and reasoning below (say 'I don't know' if they lack the answer).",
+                   f"Question date: {qdate}\nQuestion: {question}\n\n"
+                   f"Notes and reasoning so far:\n{out}", max_tokens=64)
+    return fin.strip() if fin.strip() else out
 
 
 def qa_judge(question, gold, pred):
