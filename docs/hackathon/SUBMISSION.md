@@ -71,7 +71,7 @@ hidden. Every number reproduces from one documented command: `docs/BENCHMARK.md`
 
 **What's novel.** Memory as a *self-consistent belief state* instead of a document log:
 ingestion-time bi-temporal supersession, a belief–evidence consistency rule (stale raw
-evidence of a superseded belief is retired — no prior system does this), surprise-gated
+evidence of a superseded belief is retired — none of the systems we compare to documents this mechanism), surprise-gated
 writes, and an LLM-free read path — shipped as a pip package (`pip install tenet-memory`),
 a polished CLI (`tenet chat/remember/recall/stats`), an MCP server, and an HTTP API,
 with a 2-page paper + full preprint in `paper/`.
