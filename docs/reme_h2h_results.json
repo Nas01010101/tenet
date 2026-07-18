@@ -189,5 +189,36 @@
   "wall_s": 6377,
   "rows": "docs_scratch/reme_h2h_n100.jsonl",
   "note": "reme arm is ReMe's own pipeline end-to-end (auto_memory session notes -> keyword index -> bm25_search) with fixes required to run at all: max_tokens<=32768 for qwen-flash, stream:false, concurrency 8, update_index before retrieval (auto_memory never builds the bm25 index). All arms share the same reader/judge; reader truncation-repair is arm-neutral."
+ },
+ "supplementary_reme_agentic": {
+  "what": "ReMe's OWN answering agent end-to-end (agentic_answer job: ReAct, vector_search + bm25_search + python_execute + session-pivot, max_iters 40, LME_EMBEDDING_STORE=default so its vector index is enabled) on the same ingested workspaces, judged by the same qa_judge. Closes the protocol objection that the main harness's single-shot bm25+shared-reader underuses ReMe.",
+  "acc": 0.367,
+  "correct": 36,
+  "n": 98,
+  "wilson95": [
+   0.279,
+   0.466
+  ],
+  "unscored_subprocess_errors": 2,
+  "mcnemar": {
+   "agentic_vs_reme_bm25": {
+    "agentic_only": 6,
+    "bm25_only": 4,
+    "p": 0.754,
+    "verdict": "statistically indistinguishable \u2014 the 34% was not a reader artifact"
+   },
+   "agentic_vs_tenet": {
+    "agentic_only": 6,
+    "tenet_only": 36,
+    "p": 2.8e-06
+   },
+   "agentic_vs_rag": {
+    "agentic_only": 7,
+    "rag_only": 34,
+    "p": 2.5e-05
+   }
+  },
+  "rows": "docs/reme_agentic_rows.jsonl (trajectories preserved per workspace in mem_session/)",
+  "date": "2026-07-18"
  }
 }

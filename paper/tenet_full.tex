@@ -584,7 +584,14 @@ every question type. \tenet{}-vs-RAG is $+3$pp (11/8, $p{=}0.65$, n.s.\ at this 
 Notably ReMe trails \emph{plain RAG} by 30pp ($p\approx9\times10^{-6}$): lossy
 session-note distillation plus keyword-only retrieval discards detail that chunk
 retrieval keeps---the same failure axis \S\ref{sec:results} measures for \tenet{}'s
-hybrid raw-slice pool, here at full system scale. Fairness notes: we repaired four
+hybrid raw-slice pool, here at full system scale. A supplementary arm closes the
+protocol objection that the shared single-shot reader underuses ReMe: running its
+\emph{own} answering agent end-to-end as shipped (ReAct with vector + BM25 +
+session-pivot tools, vector index enabled) on the same workspaces scores
+$36.7\%$ \ci{27.9}{46.6} ($n{=}98$)---statistically indistinguishable from the
+shared-reader protocol (McNemar $p{=}0.75$), still behind \tenet{}
+($p\approx2.8\times10^{-6}$); preserved trajectories show a characteristic
+failure of retrieving the deciding note and answering ``not provided'' anyway. Fairness notes: we repaired four
 runtime defects in the ReMe deployment (a provider token-cap rejection, a streaming
 hang, a concurrency wedge, and its ingest job never building the index its retrieval
 job reads) that would otherwise have scored it at or near blind level for reasons

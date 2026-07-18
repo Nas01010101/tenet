@@ -1020,6 +1020,22 @@ a truncation-repair path (arm-neutral, fires only when Chain-of-Note deliberatio
 the `ANSWER:` marker). Evidence: [`reme_h2h_results.json`](reme_h2h_results.json) +
 per-question rows [`reme_h2h_rows.jsonl`](reme_h2h_rows.jsonl); spend $2.83 total.
 
+**Supplementary arm — ReMe fully as-shipped (added 2026-07-18).** The main
+protocol scores every arm through the same single-shot reader, which does not
+exercise ReMe's own answering agent (`agentic_answer`: a ReAct loop with
+`vector_search` + `bm25_search` + `python_execute` + session-pivot tools —
+its own eval pipeline's job #4). To close that objection we also ran ReMe
+end-to-end as shipped on the same ingested workspaces, with its vector index
+enabled (`LME_EMBEDDING_STORE=default`) and its own agent producing the
+answer, judged by the same judge: **36.7%** [27.9, 46.6] (36/98 scored; 2
+subprocess timeouts unscored) — statistically indistinguishable from the
+main protocol's 34.0% (McNemar 6/4, p=0.75), still behind Tenet (6/36,
+p≈2.8×10⁻⁶) and matched RAG (7/34, p≈2.5×10⁻⁵). Full agent trajectories are
+preserved per workspace (`mem_session/agentscope/*.jsonl`); a typical failure
+shows the agent *retrieving* the deciding note and still answering "not
+provided". Rows: [`reme_agentic_rows.jsonl`](reme_agentic_rows.jsonl);
+runner: `scripts/reme_agentic_arm.py`.
+
 Reproduce: `python scripts/reme_preingest.py --n 100 --reme-venv <venv> --workspace-root
 <ws> --workers 3` then `python scripts/bench_reme_h2h.py --n 100 --arms blind,rag,reme,tenet
 --reme-venv <venv> --workspace-root <ws> --budget-cap 10 --out <rows.jsonl>` (CI smoke:
