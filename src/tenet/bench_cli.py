@@ -47,6 +47,12 @@ BENCHMARKS: dict[str, tuple[str, str, str]] = {
         "MemoryAgentBench Accurate-Retrieval: RULER-QA / LongMemEval(S*) / EventQA.",
         "BENCHMARK.md §7 (arXiv:2507.05257)",
     ),
+    "mab-ttl": (
+        "bench_mab_ttl.py",
+        "MemoryAgentBench Test-Time Learning: 5 ICL classification cells, official "
+        "substring-EM scoring, retrieval-bound (parity-by-design vs matched RAG).",
+        "BENCHMARK.md §16 (arXiv:2507.05257)",
+    ),
     "lmev2": (
         "lmev2_adapter.py",
         "LongMemEval-V2 backend adapter — zero-LLM read-path mechanism smoke test.",

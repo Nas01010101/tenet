@@ -54,7 +54,9 @@ above the published state of the art (78.0)**, and ties multi-hop SOTA (30.2), u
 *weaker* backbone and zero-LLM ingestion (official metric + prompt verbatim, all 800
 questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
 published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
-Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. We also reimplemented
+Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. On MAB **Test-Time Learning** (the third of MAB's four
+competencies) Tenet averages **77.2 (n=500)** — above BM25 (75.4) and every published memory
+system (Zep 62.8, MemGPT 67.6, Mem0 32.4) on a *weaker*, $0 local 7B reader. We also reimplemented
 four rival paper methods (Mem0, CAR, HippoRAG-v2, MemAgent) in the same harness: **Tenet
 leads every arm on both axes**. On our controlled knowledge-churn *primitive* (one templated
 attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the harsher

@@ -132,6 +132,9 @@ half-life), not a full close of the gap (`docs/BENCHMARK.md` §9–9.1).
   Tenet holds 100% throughout.
 - **MAB Accurate-Retrieval: 59.3 average, 2nd of all published systems** (20+ points
   above Mem0/Zep/MemGPT), and beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6).
+- **MAB Test-Time Learning: 77.2 average (n=500)** — above BM25 (75.4) and every
+  published memory system (Zep 62.8, MemGPT 67.6, Mem0 32.4) on a *weaker*, $0 local
+  7B reader; 3 of MAB's 4 competencies now covered.
 - Best accuracy-per-token on LongMemEval_S (49.2 vs RAG's 27.4 per 1k tokens); on Qwen
   Cloud's own product reader (`qwen3.7-plus`, n=100) Tenet reaches **81.0% vs matched
   RAG's 79.0%** at 100% recall@10 and 98.5% less context than full history.
