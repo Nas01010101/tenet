@@ -59,7 +59,7 @@ same-harness naive-RAG scores 47.8 / 4.5. In a backbone-matched reimplementation
 published mechanisms (CAR, Mem0-style, HippoRAG-v2-style, MemAgent-style), Tenet leads
 every arm on both axes. Head-to-head against a released framework run black-box through
 its own pipeline (ReMe, reme-ai 0.4.1.1; identical Qwen reader/judge): **Tenet 67.0% vs
-ReMe 34.0%** on LongMemEval_S n=100, McNemar p ≈ 2×10⁻⁶ (matched RAG 64.0, blind 0.0).
+ReMe 34.0%** on LongMemEval_S n=100, McNemar $p \approx 2\times10^{-6}$ (matched RAG 64.0, blind 0.0).
 
 **MemoryAgentBench Accurate-Retrieval** (~2,000 questions, 197K–534K-token contexts,
 official metrics, matched reader): average **59.3** — second only to HippoRAG-v2 (65.1,
