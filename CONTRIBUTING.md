@@ -13,6 +13,13 @@ pip install -e .
 cp .env.example .env && chmod 600 .env
 ```
 
+> ⚠️ **A `.env` with a real `DASHSCOPE_API_KEY` auto-loads and arms paid Qwen calls**
+> for anything that hits the chat/ingest path (`Tenet.ingest`, the assistant,
+> `scripts/test_tenet_e2e.py`, `scripts/test_e2e_surfaces.py`). To run the test battery
+> or benchmarks with zero spend, force local: `LLM_PROVIDER=ollama EMBED_PROVIDER=local`.
+> The 11-suite CI battery (`scripts/test_*.py` in `.github/workflows/test.yml`) makes no
+> live calls by design.
+
 You don't need a Qwen Cloud API key to develop. Set this in `.env` (or export
 it) to run everything against a local embedder instead:
 

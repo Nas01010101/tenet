@@ -29,6 +29,19 @@ app = FastAPI(
     version="0.2.0",
 )
 
+
+@app.on_event("startup")
+def _warm_embedder() -> None:
+    """Pay the embedder's one-time load at boot, not on a judge's first write.
+    The local sentence-transformers model lazy-loads on first embed (~8s cold);
+    on Alibaba FC, which scales to zero when idle, that stall would otherwise
+    land on the first /reset or /ingest after a cold start. One tiny embed here
+    moves it into startup. No-op cost for the API-embed providers (qwen)."""
+    try:
+        config.embed_texts(["warm"])
+    except Exception:
+        pass  # never let a warm-up failure block the server from starting
+
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 _SESSION_COOKIE = "tenet_sid"
 # Demo (/reset) sessions get their own throwaway db file, so concurrent judges

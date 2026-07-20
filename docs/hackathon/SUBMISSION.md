@@ -51,9 +51,11 @@ for distillation, `qwen3.7-plus` for reading — all via the OpenAI-compatible D
 **MemoryAgentBench** (arXiv:2507.05257) **FactConsolidation** — the conflict-resolution axis where
 famous systems collapse (Zep 7%, Mem0 18%, MemGPT 28%) — Tenet scores **97.0% single-hop
 [94.8, 98.3], above even the published gpt-4o-tier result (94.8)**, and **45.8% multi-hop,
-1.5× the published SOTA (30.2)**, using a *weaker* backbone and zero-LLM ingestion
-(official metric + prompt verbatim, all 800 questions, Wilson CIs; post ingestion-keyer
-fix found by our own miss-file audit — pre-fix 86.5/30.0 preserved in the artifact). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
+1.5× the published mini SOTA (30.2; below the gpt-4o-tier 51.5)**, using a *weaker* backbone
+and zero-LLM ingestion — the ingestion keyer exploits the benchmark's templated fact shape,
+so free-form text uses the LLM-distilled keyer instead (official metric + prompt verbatim,
+all 800 questions, Wilson CIs; post ingestion-keyer fix found by our own miss-file audit —
+pre-fix 86.5/30.0 preserved in the artifact). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
 published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
 Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. On MAB **Test-Time Learning** (the third of MAB's four
 competencies) Tenet averages **77.2 (n=500)** — above BM25 (75.4) and every published memory

@@ -116,7 +116,7 @@ Tenet 不是个人助手小玩具——它是一个通用原语，服务于**任
 | 基准 | 指标 | Tenet | 对照 | 出处 |
 |---|---|---:|---:|---|
 | MemoryAgentBench FactConsolidation（arXiv:2507.05257），单跳 | SubEM，6K–262K 汇总 | **97.0** [94.8, 98.3] | > 已发表 gpt-4o 档 94.8 · mini 档 SOTA 78.0 · 朴素 RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
-| MAB FactConsolidation，多跳 | SubEM，6K–262K 汇总 | **45.8** [40.9, 50.6] | 已发表 SOTA 30.2 的 **1.5×**（CI 排除）· 所有已发表记忆系统 ≤7 · 朴素 RAG 4.5 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MAB FactConsolidation，多跳 | SubEM，6K–262K 汇总 | **45.8** [40.9, 50.6] | 已发表 mini 档 SOTA 30.2 的 **1.5×**（CI 排除）· 低于 gpt-4o 档 51.5 · 所有已发表记忆系统 ≤7 · 朴素 RAG 4.5 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | 官方指标平均 | **59.3**（全部已发表系统中第 2 名） | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | MAB Test-Time Learning（5 个 ICL 单元，n=500） | 官方 substr-EM 平均 | **77.2** [73.3, 80.7]（本地 7B 阅读器，$0） | > BM25 75.4 · MemGPT 67.6 · Zep 62.8 · Mem0 32.4（GPT-4o-mini 阅读器） | [`BENCHMARK.md` §16](docs/BENCHMARK.md#16-mab-test-time-learning--the-third-mab-competency-scriptsbench_mab_ttlpy) |
 | 知识翻新地平线（同一事实更新 2→12 次） | 当前值准确率 | **始终 100%** | 朴素 RAG 从 100% 塌到 50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
@@ -396,8 +396,9 @@ Tenet 是一条**前沿曲线，而非一个点**——一个 `expand` 旋钮即
 | 单跳 | 47.8 | **97.0** [94.8, 98.3] | 78.0 / 94.8 |
 | 多跳 | 4.5 | **45.8** [40.9, 50.6] | 30.2 / 51.5 |
 
-**单跳甚至超过已发表 gpt-4o 档的汇总结果，多跳是已发表 SOTA 的 1.5×——用的是本地 7B
-骨干模型和*零 LLM* 的确定性写入。** SubEM 与官方提示词逐字一致；Wilson 置信区间；无长度塌陷
+**单跳甚至超过已发表 gpt-4o 档的汇总结果，多跳是已发表 mini 档 SOTA 的 1.5×（低于 gpt-4o 档 51.5）——
+用的是本地 7B 骨干模型和*零 LLM* 的确定性写入**（该零 LLM 键生成器利用了基准测试模板化的事实结构；
+自由文本使用 LLM 蒸馏键生成器——见 §6）。SubEM 与官方提示词逐字一致；Wilson 置信区间；无长度塌陷
 （每个干草堆规模下单跳 ≥96%）。这些数字来自 2026-07-19 的摄取键修复——由我们自己的失误文件
 审计暴露（修复前：86.5 / 30.0——两次运行都保存在证据文件中）。详见
 [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §6。

@@ -119,7 +119,7 @@ never becomes "operate a database cluster."
 | benchmark | metric | Tenet | comparison | source |
 |---|---|---:|---:|---|
 | MemoryAgentBench FactConsolidation (arXiv:2507.05257), single-hop | SubEM, pooled 6K–262K | **97.0** [94.8, 98.3] | > published gpt-4o-tier 94.8 · mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
-| MAB FactConsolidation, multi-hop | SubEM, pooled 6K–262K | **45.8** [40.9, 50.6] | **1.5×** published SOTA 30.2 (CI excludes) · every published memory system ≤7 · naive-RAG 4.5 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MAB FactConsolidation, multi-hop | SubEM, pooled 6K–262K | **45.8** [40.9, 50.6] | **1.5×** published mini SOTA 30.2 (CI excludes) · below gpt-4o-tier 51.5 · every published memory system ≤7 · naive-RAG 4.5 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | MAB Test-Time Learning (5 ICL cells, n=500) | official substr-EM, avg | **77.2** [73.3, 80.7] (local 7B reader, $0) | > BM25 75.4 · MemGPT 67.6 · Zep 62.8 · Mem0 32.4 (GPT-4o-mini reader) | [`BENCHMARK.md` §16](docs/BENCHMARK.md#16-mab-test-time-learning--the-third-mab-competency-scriptsbench_mab_ttlpy) |
 | Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
@@ -416,9 +416,11 @@ Mem0 18%, MemGPT 28%** single-hop; **≤7%** multi-hop for every memory system i
 | single-hop | 47.8 | **97.0** [94.8, 98.3] | 78.0 / 94.8 |
 | multi-hop | 4.5 | **45.8** [40.9, 50.6] | 30.2 / 51.5 |
 
-**Single-hop above even the published gpt-4o-tier pooled result, multi-hop 1.5× the
-published SOTA — with a local 7B backbone and *zero-LLM* deterministic ingestion.** SubEM +
-official prompt verbatim; Wilson CIs; no length collapse (SH ≥96% at every haystack size).
+**Single-hop above even the published gpt-4o-tier pooled result, multi-hop 1.5× the mini
+SOTA (below the gpt-4o-tier 51.5) — with a local 7B backbone and *zero-LLM* deterministic
+ingestion** (the zero-LLM keyer exploits the benchmark's templated fact shape; free-form
+text uses the LLM-distilled keyer — see §6). SubEM + official prompt verbatim; Wilson CIs;
+no length collapse (SH ≥96% at every haystack size).
 These numbers follow a 2026-07-19 ingestion-keyer fix that our own miss-file audit exposed
 (pre-fix: 86.5 / 30.0 — both runs preserved in the artifact). Details:
 [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §6. Raw evidence:

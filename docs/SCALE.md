@@ -259,7 +259,8 @@ this judgment call rather than silently accepting it.
   confirm this held end-to-end, the LLM-based accuracy benchmarks were re-run against the
   shipped code: **ChurnBench 100/100/100 at U=2/8/32 (half-life 32) and MAB FactConsolidation
   SH-6k 90.0% (n=20)** — both byte-identical to their pre-refactor values. The 100× recall
-  speedup and the ingest fix cost zero accuracy.
+  speedup and the ingest fix cost zero accuracy. *(This SH-6k 90.0% is a pre-keyer-fix
+  refactor-regression baseline; the current SH-6k is 99.0% — see BENCHMARK.md §6.)*
 
 ## Findings from the original pass — resolved
 

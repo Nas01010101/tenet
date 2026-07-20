@@ -174,7 +174,13 @@ principle): an observation the store already predicts (cosine ≥ 0.97) carries 
 information and isn't stored. Measured: **15% of turns dropped as redundant, no accuracy
 loss.** RAG stores everything.
 
-## 5. Capabilities proven deterministically (`scripts/test_memory.py`, `test_tenet_e2e.py`)
+## 5. Capabilities proven — deterministically (`scripts/test_memory.py`) and with a live distiller (`test_tenet_e2e.py`)
+
+*(`test_memory.py` is the deterministic, no-LLM suite — the capability claims below rest on
+it. `test_tenet_e2e.py` exercises the free-form `ingest()` distillation path end to end and
+therefore needs a live distiller; it validates the shipped Qwen `qwen3.6-flash` / LoRA path
+and is not backend-agnostic — a weak local 7B can produce inconsistent keys on free-form
+text, which is exactly why the FactCon benchmark uses deterministic template keys, §6.)*
 Supersession · time-travel (`recall(as_of=…)`) · forgetting sweep · context-budget recall
 · distillation-driven consistent keys — all pass without any benchmark, demonstrating the
 core value directly.
