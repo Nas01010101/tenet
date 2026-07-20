@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="560" height="360" viewBox="0 0 560 360" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
   <text x="30" y="30" font-size="17" font-weight="700" fill="#111827">Long-horizon knowledge churn: current-value accuracy</text>
-  <text x="30" y="50" font-size="12" fill="#6b7280">One fact updated N times amid distractors (k=6, 12 principals/point). RAG drowns in stale versions; Mnemo supersedes.</text>
+  <text x="30" y="50" font-size="12" fill="#6b7280">One fact updated N times amid distractors (k=6, 12 principals/point). RAG drowns in stale versions; Tenet supersedes.</text>
 
   <!-- axes -->
   <line x1="60" y1="80" x2="60" y2="290" stroke="#9ca3af" stroke-width="1.5"/>
@@ -21,7 +21,7 @@
   <text x="500" y="308" font-size="11" fill="#6b7280" text-anchor="middle">12</text>
   <text x="280" y="335" font-size="12" fill="#374151" text-anchor="middle">number of times the fact was updated</text>
 
-  <!-- Mnemo: flat at 100% (y=90) -->
+  <!-- Tenet: flat at 100% (y=90) -->
   <polyline fill="none" stroke="#10b981" stroke-width="3"
     points="60,90 148,90 236,90 324,90 412,90 500,90"/>
   <!-- RAG: 100,100,100,67,58,50  (y: 90,90,90,170,192,210) -->
@@ -32,7 +32,7 @@
 
   <!-- legend -->
   <rect x="360" y="230" width="14" height="3" fill="#10b981"/>
-  <text x="380" y="236" font-size="12" fill="#111827">Mnemo — 100% (holds)</text>
+  <text x="380" y="236" font-size="12" fill="#111827">Tenet — 100% (holds)</text>
   <rect x="360" y="252" width="14" height="3" fill="#ef4444"/>
   <text x="380" y="258" font-size="12" fill="#111827">naive-RAG — 100%→50%</text>
 </svg>
