@@ -211,8 +211,9 @@ Protocol · FastAPI · SQLite · NumPy · Alibaba Cloud OSS · LangGraph · Pyth
   in About)
 - **Live demo, running on Alibaba Cloud:** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
   (Function Compute; belief-ledger UI at `/`, `curl .../health`)
-- **60-second zero-key demo:** `pip install tenet-memory[local]` then
-  `python examples/00_zero_key_demo.py`
+- **Zero-key demo (one command, no API key):** `git clone https://github.com/Nas01010101/tenet
+  && cd tenet && pip install -e ".[local]" && python examples/00_zero_key_demo.py` —
+  measured 94 s clone-to-output on a warm pip cache (first install pulls ~1 GB of wheels)
 - **MCP config:** `examples/03_mcp_client.md`
 
 ## Links

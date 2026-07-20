@@ -206,8 +206,9 @@ with a 2-page paper + full preprint in `paper/`.
 - Every benchmark number reproduces from one documented CLI command
   (`tenet bench run <name>`, `docs/BENCHMARK.md`); honest weak spots (multi-session
   synthesis, multi-hop chaining) are reported, not hidden.
-- **A 60-second, zero-API-key first run**: `pip install tenet-memory[local]` then
-  `python examples/00_zero_key_demo.py` walks the whole LLM-free read path
+- **A zero-API-key first run**: `git clone … && pip install -e ".[local]"` then
+  `python examples/00_zero_key_demo.py` (94 s clone-to-output on a warm pip cache;
+  first install pulls ~1 GB of wheels) walks the whole LLM-free read path
   (supersession, time-travel, learned-dynamics doubts) with no signup and no network
   call — the lowest-friction way a judge can see the belief-state mechanism work.
 - **`CHANGELOG.md`** (Keep a Changelog format) tracks every notable change since

@@ -3,7 +3,8 @@
 The "wow in 60 seconds" script: no DASHSCOPE_API_KEY, no OpenAI key, nothing to
 sign up for. `EMBED_PROVIDER=local` is forced below (sentence-transformers,
 CPU) BEFORE tenet is imported, so this runs on a fresh clone the moment
-`pip install tenet-memory[local]` finishes.
+`pip install -e ".[local]"` (or, once published, `pip install tenet-memory[local]`)
+finishes.
 
 This intentionally bypasses `Tenet.ingest()` (which distills raw text via one
 LLM call — see distill.py) and calls `store_fact()` / `core.store()` directly
@@ -15,8 +16,8 @@ module docstring: "recall... no LLM in the read path"). A real deployment
 still wants `ingest()` for free-form conversation; this demo shows the part
 of Tenet that works without ever calling out to a model.
 
-Run:
-    pip install tenet-memory[local]
+Run (from a clone):
+    pip install -e ".[local]"
     python examples/00_zero_key_demo.py
 """
 from __future__ import annotations

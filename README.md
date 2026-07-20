@@ -197,12 +197,16 @@ Read the 2-page paper: **[`paper/tenet.md`](paper/tenet.md)**.
 
 ## Quickstart
 
-### 1. 60 seconds, no API key
+### 1. One command, no API key
 
 ```bash
-pip install tenet-memory[local]             # bge-small embedder, CPU — no network call at all
+git clone https://github.com/Nas01010101/tenet && cd tenet
+pip install -e ".[local]"                   # bge-small embedder, CPU — runs fully offline after install
 python examples/00_zero_key_demo.py         # supersession + time-travel + doubts, zero LLM calls
 ```
+Measured cold-start: **94 s clone-to-output on a warm pip cache** (the `[local]` extra pulls
+`sentence-transformers`/torch — first-ever install downloads ~1 GB of wheels, so budget a few
+minutes on a cold network; every run after that is offline and instant).
 Walks the entire LLM-free read path end to end — recall, supersession, time-travel, and the
 learned-dynamics `doubts` — against a pre-formed fact ledger. The one thing it *can't* show is
 `ingest()` turning free-form conversation into those facts; that's the one call in Tenet that
