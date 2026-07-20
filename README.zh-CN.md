@@ -230,7 +230,12 @@ python -m tenet.mcp_server                   # 或 MCP 服务器（learn/recall/
 自动回退到 `~/.tenet/tenet.db`。
 
 更多示例见 [`examples/`](examples/) —— 零密钥演示、快速上手、助手循环、MCP 客户端、
-LangChain 适配器、LangGraph `BaseStore` 适配器。
+LangChain 适配器、LangGraph `BaseStore` 适配器、LlamaIndex 记忆块。
+
+**兼容：** 任何 MCP 客户端 · LangChain（薄 `TenetMemory` 适配器）· LangGraph（`BaseStore`
+适配器，见下）· [LlamaIndex](examples/06_llamaindex_memory.py)（`BaseMemoryBlock`，
+`pip install tenet-memory[llamaindex]` —— 与官方事实列表块不同，事实变化时*取代*而非互相矛盾）·
+纯 HTTP（`tenet.api:app`，`POST /chat`）。
 
 **兼容：** 任何 MCP 客户端（[Claude Desktop](examples/03_mcp_client.md)、IDE、其他智能体）·
 [LangChain](examples/04_langchain_memory.py)（轻量 `TenetMemory` 适配器）·
@@ -431,6 +436,7 @@ src/tenet/  core.py memory.py distill.py config.py   信念状态记忆引擎
             agent.py                                  助手
             mcp_server.py api.py alicloud_oss.py      接口 + 阿里云部署
             integrations/langgraph.py                 LangGraph BaseStore 适配器
+            integrations/llamaindex.py 06_llamaindex_memory.py  LlamaIndex BaseMemoryBlock 适配器与示例
 examples/   00_zero_key_demo.py 01_quickstart.py 02_assistant.py 04_langchain_memory.py
             05_langgraph_store.py                     零密钥演示、快速上手、助手循环、
                                                         LangChain + LangGraph 适配器

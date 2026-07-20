@@ -20,7 +20,7 @@ jobs:
         with:
           path: ~/.cache/huggingface
           key: hf-bge-small-${{ runner.os }}
-      - run: pip install -q numpy sentence-transformers mcp langgraph
+      - run: pip install -q numpy sentence-transformers mcp langgraph llama-index-core
       - name: capability tests (deterministic, no LLM)
         run: python scripts/test_memory.py
       - name: fact-dynamics (world-model) tests (deterministic, no LLM)
@@ -33,6 +33,8 @@ jobs:
         run: python scripts/test_providers.py
       - name: LangGraph BaseStore adapter tests (deterministic, no LLM)
         run: python scripts/test_langgraph_store.py
+      - name: LlamaIndex BaseMemoryBlock adapter tests (deterministic, no LLM)
+        run: python scripts/test_llamaindex_block.py
       - name: adaptive multi-hop navigation tests (deterministic, no LLM)
         run: python scripts/test_navigate.py
       - name: default-db-path resolution tests (deterministic, no LLM — B1 regression)

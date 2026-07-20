@@ -106,8 +106,8 @@ Qwen/OpenRouter/Ollama by env var with zero code change:
   reference's own 0.707 (`docs/BENCHMARK.md` §10).
 - Ships as a real product: `pip install tenet-memory` (once published), a CLI
   (`tenet chat/remember/recall/navigate/stats/doubts/sweep`), an HTTP API + a
-  belief-ledger web demo (`src/tenet/static/index.html`), a LangGraph `BaseStore`
-  adapter, and a 2-page paper + full preprint in `paper/`.
+  belief-ledger web demo (`src/tenet/static/index.html`), LangGraph `BaseStore` +
+  LlamaIndex `BaseMemoryBlock` adapters, and a 2-page paper + full preprint in `paper/`.
 
 ## Challenges we ran into
 **The falsified-gate story.** We pre-registered success gates for two ideas before

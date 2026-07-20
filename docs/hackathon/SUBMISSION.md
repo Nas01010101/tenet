@@ -192,7 +192,11 @@ with a 2-page paper + full preprint in `paper/`.
   LangGraph agent bi-temporal supersession — a re-`put()` of the same `(namespace, key)`
   retires the old value to history instead of overwriting it — for free. Optional extra
   `pip install tenet-memory[langgraph]`, tested end to end in
-  `scripts/test_langgraph_store.py`.
+  `scripts/test_langgraph_store.py`. Same pattern for LlamaIndex: `TenetMemoryBlock`
+  (`src/tenet/integrations/llamaindex.py`) implements the modern `BaseMemoryBlock`
+  contract — unlike the shipped fact-list block, a changed fact supersedes instead of
+  contradicting; LLM-free `aget`, ranked-line `atruncate` — `[llamaindex]` extra,
+  tested in `scripts/test_llamaindex_block.py`.
 
 ### Presentation (15%)
 - **One-page architecture doc** with a Mermaid component diagram, the drift-model

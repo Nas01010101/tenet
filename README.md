@@ -241,12 +241,14 @@ needed). Override with `TENET_DB_PATH=/path/to/db`. If `data/` can't be created 
 machine, the default falls back automatically to `~/.tenet/tenet.db`.
 
 More in [`examples/`](examples/) — zero-key demo, quickstart, assistant loop, MCP client,
-LangChain adapter, LangGraph `BaseStore` adapter.
+LangChain adapter, LangGraph `BaseStore` adapter, LlamaIndex memory block.
 
 **Works with:** any MCP client ([Claude Desktop](examples/03_mcp_client.md), IDEs, other
 agents) · [LangChain](examples/04_langchain_memory.py) via a thin `TenetMemory` adapter ·
-[LangGraph](examples/05_langgraph_store.py) via a `BaseStore` adapter (below) · plain HTTP
-(`tenet.api:app`, `POST /chat`).
+[LangGraph](examples/05_langgraph_store.py) via a `BaseStore` adapter (below) ·
+[LlamaIndex](examples/06_llamaindex_memory.py) via a `BaseMemoryBlock`
+(`pip install tenet-memory[llamaindex]` — unlike the shipped fact-list block, a changed
+fact *supersedes* instead of contradicting) · plain HTTP (`tenet.api:app`, `POST /chat`).
 
 ### LangGraph `BaseStore` adapter
 
@@ -452,9 +454,11 @@ src/tenet/  core.py memory.py distill.py config.py   the belief-state memory eng
             agent.py                                  the assistant
             mcp_server.py api.py alicloud_oss.py      surfaces + Alibaba Cloud deploy
             integrations/langgraph.py                 LangGraph BaseStore adapter
+            integrations/llamaindex.py                LlamaIndex BaseMemoryBlock adapter
 examples/   00_zero_key_demo.py 01_quickstart.py 02_assistant.py 04_langchain_memory.py
-            05_langgraph_store.py                     zero-key demo, quickstart, assistant loop,
-                                                        LangChain + LangGraph adapters
+            05_langgraph_store.py 06_llamaindex_memory.py
+                                                      zero-key demo, quickstart, assistant loop,
+                                                        LangChain + LangGraph + LlamaIndex adapters
 scripts/    demo_agent.py    video walkthrough
             bench_horizon.py bench_factcon.py bench_mab_ar.py lme_recall.py   benchmarks
             test_memory.py test_dynamics.py test_agent_uncertainty.py test_errors.py

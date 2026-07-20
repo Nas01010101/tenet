@@ -42,7 +42,8 @@ oss = ["oss2>=2.18"]
 local = ["sentence-transformers>=3.0"]
 cli = ["rich>=13"]
 langgraph = ["langgraph>=0.2"]  # TenetStore(BaseStore) adapter, src/tenet/integrations/langgraph.py
-all = ["tenet-memory[api,mcp,oss,local,cli,langgraph]"]
+llamaindex = ["llama-index-core>=0.12"]  # TenetMemoryBlock adapter, src/tenet/integrations/llamaindex.py
+all = ["tenet-memory[api,mcp,oss,local,cli,langgraph,llamaindex]"]
 
 [project.urls]
 Homepage = "https://github.com/Nas01010101/tenet"
