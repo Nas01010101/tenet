@@ -53,6 +53,28 @@ that remembers you across sessions and stays correct when your facts change:
   agent) gets persistent, self-managing memory with no glue code
   (`src/tenet/mcp_server.py`).
 
+**How it's different — and what's honestly shared.** Bi-temporal validity is not our
+invention: Zep/Graphiti (arXiv:2501.13956) and Engram (arXiv:2606.09900) also keep
+valid-time + transaction-time and invalidate rather than delete. Tenet's originality is
+in what it *removes* to deliver the same temporal correctness:
+- **No graph database.** Zep/Graphiti runs on Neo4j/FalkorDB; Tenet is `pip install` —
+  SQLite + numpy, embedded in your process.
+- **No LLM in the supersession path.** Zep detects contradictions with an LLM judgment
+  over candidate edges at ingest; Tenet's distiller emits a stable `subject::attribute`
+  key once, and supersession is a deterministic key collision — $0, auditable,
+  same-input-same-output.
+- **No LLM anywhere on the read path** — recall, time-travel, budget-fill, forgetting
+  and multi-hop `navigate()` are embeddings + closed-form math, low-milliseconds.
+- **A belief state you can open and read** — `get_all()` returns
+  `subject::attribute → value`, current vs. superseded — not opaque vectors or graph
+  nodes — plus an evaluation discipline (Wilson CIs on every number, self-falsified
+  claims, four features shipped default-OFF because we measured them as no-benefit)
+  that the 2026 reproduction audits show is the field's actual gap.
+
+One line: **Zep's temporal correctness, Mem0's drop-in API, and a belief state you can
+actually read — with zero infrastructure.** Full honest matrix incl. Engram:
+[`docs/COMPARISON.md`](../COMPARISON.md).
+
 ## How we built it
 Built on **Qwen Cloud end to end**, three distinct Qwen Cloud APIs each doing the job
 it's best at, through one fail-loud provider layer (`src/tenet/config.py`) that swaps

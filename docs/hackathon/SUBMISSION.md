@@ -118,6 +118,12 @@ with a 2-page paper + full preprint in `paper/`.
   `doubts`→time-travel runs with zero cloud calls, network off included.
 
 ### Innovation (30%) — non-trivial logic, modularity, error handling
+- **Positioned against the field, not in a vacuum**: bi-temporal validity is shared
+  with Zep/Graphiti (arXiv:2501.13956) and Engram (arXiv:2606.09900) — Tenet's claim
+  is the first *embedded, deterministic* version: no graph database (SQLite + numpy),
+  no LLM judgment in the supersession path (stable-key collision instead of per-edge
+  contradiction calls), no LLM anywhere on the read path, and a human-readable belief
+  state. See `docs/COMPARISON.md` for the honest matrix.
 - **Memory as a self-consistent belief state, not a document log**: bi-temporal
   supersession (`memory.py:store`), belief–evidence consistency (a raw slice echoing a
   *superseded* belief is retired from recall, `_STALE_ECHO`), and surprise-gated writes
