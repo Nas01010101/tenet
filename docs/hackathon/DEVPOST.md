@@ -75,6 +75,13 @@ One line: **Zep's temporal correctness, Mem0's drop-in API, and a belief state y
 actually read — with zero infrastructure.** Full honest matrix incl. Engram:
 [`docs/COMPARISON.md`](../COMPARISON.md).
 
+And the design isn't waiting for a user: our Track 3 entry **Majalis** (agent society,
+github.com/Nas01010101/majalis) runs its shared belief board on Tenet's exact supersession
+design — same keyed `entity::attribute` collision semantics, retire-never-delete, as an
+independent in-process implementation — with four heterogeneous Qwen agents writing through
+it in a live, deployed product. The mechanism is proven under real multi-agent load, not
+just benchmarks.
+
 ## How we built it
 Built on **Qwen Cloud end to end**, three distinct Qwen Cloud APIs each doing the job
 it's best at, through one fail-loud provider layer (`src/tenet/config.py`) that swaps

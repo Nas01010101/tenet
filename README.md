@@ -81,6 +81,13 @@ mem.get_all(user_id="alex")                        # → readable belief state, 
 
 Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](docs/COMPARISON.md).
 
+**One design, two shipped products.** [Majalis](https://github.com/Nas01010101/majalis) — our
+Track 3 agent society — runs its shared belief board on Tenet's exact supersession design
+(same keyed `entity::attribute` collision semantics, retire-never-delete, as an independent
+in-process implementation): four heterogeneous Qwen agents write through it live, and a
+learned world model reads the belief state to decide when debate is worth spending. The
+mechanism generalizes beyond personal memory — it's load-bearing in a second product.
+
 > **Reproducibility is the pitch.** Independent 2026 audits found the field's headline
 > numbers don't survive reproduction — Mem0 claims 93.4% on LongMemEval but reproduces at
 > [73.8% on the standardized harness](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);
