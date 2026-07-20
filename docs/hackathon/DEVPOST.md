@@ -32,6 +32,9 @@ built to close. The name comes from the idea of memory as something that has to 
 *internally consistent through time*, the way a bi-temporal ledger does: what's true
 *now* vs. what we *used to believe*, kept distinct and both queryable.
 
+*Tenet is an original project built new during the Hackathon Submission Period — the engine,
+benchmarks, MCP server, adapters, and Alibaba Cloud deployment were all created for this entry.*
+
 ## What it does
 Tenet is a memory engine — and a personal assistant built on it (`src/tenet/agent.py`) —
 that remembers you across sessions and stays correct when your facts change:
