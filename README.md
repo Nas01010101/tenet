@@ -88,6 +88,24 @@ in-process implementation): four heterogeneous Qwen agents write through it live
 learned world model reads the belief state to decide when debate is worth spending. The
 mechanism generalizes beyond personal memory — it's load-bearing in a second product.
 
+## What you'd build on it
+
+Tenet is not a personal-assistant gadget — it's the general primitive for **any state that
+must be *currently true* while its history stays auditable**. Every pattern below runs on a
+surface that already ships in this repo:
+
+| You're building | The failure Tenet removes | Shipped surface |
+|---|---|---|
+| An agent in Claude Desktop / an IDE / any MCP client | memory that silently goes stale as facts change | MCP server (`learn`/`recall`/`time_travel`/`doubts`) |
+| A LangGraph / LlamaIndex / LangChain / Mem0-style app | framework memory that keeps *both* the old and new value | `BaseStore` · `BaseMemoryBlock` · `TenetMemory` adapters, Mem0-compatible API |
+| A support / CRM / ops bot over account state | answering from a superseded plan, address, or entitlement | keyed supersession + the churn result (RAG collapses 100→50%, Tenet holds 100%) |
+| A multi-agent system with shared state | concurrent writers trampling each other's facts | the Majalis pattern: supersession as the write-arbitration rule |
+| Anything audited or regulated | "what did we believe when we decided X?" is unanswerable | provenance + `recall(as_of=…)` + `tenet timeline`/`export` |
+
+And it scales like a library, not a service: reads are **~9–12 ms flat from 1k to 100k
+facts** on a laptop (embeddings + closed-form math over one SQLite file), so "add memory"
+never becomes "operate a database cluster."
+
 > **Reproducibility is the pitch.** Independent 2026 audits found the field's headline
 > numbers don't survive reproduction — Mem0 claims 93.4% on LongMemEval but reproduces at
 > [73.8% on the standardized harness](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);

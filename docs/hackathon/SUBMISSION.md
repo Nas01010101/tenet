@@ -167,6 +167,13 @@ with a 2-page paper + full preprint in `paper/`.
   claimed here.
 
 ### Impact (25%)
+- **A general primitive, not a niche demo**: the same engine backs five deployment
+  patterns that all ship in-repo today — MCP memory for any client, framework memory
+  (LangGraph `BaseStore`, LlamaIndex `BaseMemoryBlock`, LangChain, Mem0-compatible API),
+  support/CRM account-state truth (the churn regime), multi-agent shared state (the
+  Majalis pattern), and audited "what did we believe when" workflows (provenance +
+  `as_of` + `tenet timeline`/`export`). Reads stay ~9–12 ms flat from 1k to 100k facts
+  on one SQLite file — scaling never becomes "operate a database cluster."
 - **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (arXiv:2507.05257)
   FactConsolidation single-hop **86.5% pooled**, above published mini-tier SOTA (78.0),
   on a *weaker* local-7B backbone with zero-LLM ingestion — `docs/BENCHMARK.md` §6.
