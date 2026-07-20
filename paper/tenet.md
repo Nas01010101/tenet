@@ -365,9 +365,19 @@ and 20+ points above Mem0 (32.6), Zep (37.5) and MemGPT. Per sub-benchmark: Even
 **70.7** (n=1,500; Wilson CI [68.3, 72.9] excludes HippoRAG-v2's 67.6), RULER SH-QA 75.0
 (parity with 76), LME(S*) 46.3 vs 50.7, RULER MH-QA 45.0 vs 66 — the honest loss:
 Personalized-PageRank graph traversal is genuinely stronger at multi-hop chaining over
-narrative text. Together with §4.5, Tenet leads or ties the published field on two of
-MAB's four competencies while being the only published memory framework in this comparison
-whose ingestion never calls an LLM (the naive-RAG control aside).
+narrative text.
+
+On MAB's third competency, **Test-Time Learning** (5 ICL classification cells, ~6–8K
+ingested demonstrations each, official prompt + substring-EM scoring, n=500), Tenet
+pools **77.2** [73.3, 80.7] — above BM25 (75.4) and every published memory system
+(MemGPT 67.6, Zep 62.8, HippoRAG-v2 61.4, Mem0 32.4) despite using a *weaker* local
+7B reader against their GPT-4o-mini, and ~5 points under its own long-context backbone
+ceiling where Mem0 loses 50 to its own. TTL is retrieval-bound — no conflict to
+resolve, so Tenet's supersession machinery is inert and the matched-RAG control ties
+exactly, by design; the result is a breadth check, not a win claim. Together with
+§4.5, Tenet leads or ties the published memory field on three of MAB's four
+competencies while being the only published memory framework in this comparison whose
+ingestion never calls an LLM (the naive-RAG control aside).
 
 **4.7 Case study — web-agent trajectory memory (LongMemEval-V2).** Adapting Tenet's
 ingestion to LME-V2's web-agent trajectory haystacks [Wu 2026] (DOM states, actions;

@@ -52,7 +52,10 @@ MemoryAgentBench \textsc{FactConsolidation}~\cite{mab} it scores $86.5\%$ single
 ($78.0$) despite using a local 7B backbone---and ties the multi-hop state of the art
 ($30.2$); on MemoryAgentBench \textsc{Accurate Retrieval} it averages $59.3$, second only
 to HippoRAG-v2 ($65.1$) among published systems while being the only one whose ingestion
-never calls an LLM, and beats every published memory framework on EventQA ($70.7$ vs $67.6$; Wilson CI excludes).
+never calls an LLM, and beats every published memory framework on EventQA ($70.7$ vs $67.6$; Wilson CI excludes);
+on MemoryAgentBench \textsc{Test-Time Learning} it pools $77.2$ \ci{73.3}{80.7}
+($n{=}500$), above BM25 ($75.4$) and every published memory system (Zep $62.8$,
+Mem0 $32.4$) on a weaker, zero-cost local 7B reader.
 Run head-to-head against a released memory framework as a black box (ReMe, its own
 ingest-and-retrieve pipeline end-to-end, identical reader and judge), \tenet{} scores
 $67.0\%$ vs ReMe's $34.0\%$ on LongMemEval\_S ($n{=}100$, $p\approx2\times10^{-6}$).
@@ -99,15 +102,18 @@ current value, rather than at assembly time, where every read must re-derive it.
   \textbf{surprise-gated write policy}, salience-decay forgetting, and budget-bounded
   \textbf{belief-anchored evidence expansion}---in a light, graph-free store whose read
   path never calls an LLM (\S\ref{sec:method}).
-\item On the standardized \textbf{MemoryAgentBench}~\cite{mab} we evaluate both core
-  competencies with official metrics and prompts verbatim, Wilson CIs, and matched-reader
+\item On the standardized \textbf{MemoryAgentBench}~\cite{mab} we evaluate three of the
+  four competencies with official metrics and prompts verbatim, Wilson CIs, and matched-reader
   controls. \textsc{FactConsolidation}: single-hop $86.5$ \ci{82.8}{89.5}, above the
   published mini-tier SOTA ($78.0$~\cite{freshness}, CI excludes) on a \emph{weaker}
   (local 7B) backbone; multi-hop $30.2$, tying the same SOTA, where every memory system in the
   original benchmark table scores $\le 7$ (long-context reasoning baselines reach 28). \textsc{Accurate Retrieval}: average $59.3$,
   second among published systems to HippoRAG-v2's $65.1$~\cite{hipporag2}---which runs
   LLM OpenIE over every context token, where \tenet{} ingests with embeddings
-  only---and ahead of every published memory framework on EventQA ($70.7$ vs $67.6$, CI excludes)
+  only---and ahead of every published memory framework on EventQA ($70.7$ vs $67.6$, CI excludes).
+  \textsc{Test-Time Learning}: pooled $77.2$ \ci{73.3}{80.7} ($n{=}500$), above BM25
+  and every published memory system; retrieval-bound with no conflicts, so the
+  matched-RAG control ties exactly, by design---a breadth check, not a win claim
   (\S\ref{sec:mab}).
 \item We reimplement four published memory methods (Mem0-style consolidation, CAR
   aggregation~\cite{freshness}, a HippoRAG-v2-style OpenIE+PPR graph, and
@@ -363,18 +369,20 @@ as a mechanism contribution only, with a measured null at the tested tier.
 \section{Experimental setup}\label{sec:setup}
 \textbf{Benchmarks.} (1) A controlled \textbf{knowledge-churn} benchmark (one fact updated
 $N$ times amid distractors); (2) a controlled \textbf{knowledge-update} set for ablations;
-(3) \textbf{LongMemEval\_S}~\cite{longmemeval} ($\sim$115K-token histories); (4--5) both
-core competencies of \textbf{MemoryAgentBench}~\cite{mab}:
-\textsc{FactConsolidation} (conflict resolution; all 800 questions) and
+(3) \textbf{LongMemEval\_S}~\cite{longmemeval} ($\sim$115K-token histories); (4--6) three
+of the four competencies of \textbf{MemoryAgentBench}~\cite{mab}:
+\textsc{FactConsolidation} (conflict resolution; all 800 questions),
 \textsc{Accurate Retrieval} ($\sim$2{,}000 questions over 22 contexts of 197K--534K
-tokens).
+tokens), and \textsc{Test-Time Learning} (5 ICL classification cells, $\sim$6--8K
+ingested demonstrations each, $n{=}500$).
 
 \textbf{Protocol fidelity.} For MemoryAgentBench we use the official metrics and prompts
 \emph{verbatim} from the benchmark code: SubEM for FactConsolidation and RULER-QA;
 multiple-choice accuracy for EventQA; the official LLM-judge templates for
-LongMemEval(S*). Readers are matched to the published tier being compared
+LongMemEval(S*); substring-EM with the official ICL prompt for Test-Time Learning.
+Readers are matched to the published tier being compared
 (\texttt{gpt-4o-mini} for AR; a deliberately \emph{weaker} local \texttt{qwen2.5:7b} for
-FC). Every \tenet{} number is paired with a naive-RAG control sharing the reader,
+FC and TTL). Every \tenet{} number is paired with a naive-RAG control sharing the reader,
 chunking, and embedder, so the memory mechanism is the only variable.
 
 \textbf{Integrity rules.} API failures are excluded, never scored as wrong (0 exclusions
@@ -491,7 +499,7 @@ assembly-time aggregation must re-derive at every read. Multi-hop still degrades
 length ($42\!\to\!20$); reported honestly. The identical reader over naive-RAG memory
 scores $47.8/4.5$: the mechanism, not the reader, carries the result.
 
-\subsection{MemoryAgentBench \textsc{Accurate Retrieval}}\label{sec:mab}
+\subsection{MemoryAgentBench \textsc{Accurate Retrieval} and \textsc{Test-Time Learning}}\label{sec:mab}
 22 contexts of 197K--534K tokens, four sub-benchmarks, official per-benchmark metrics,
 matched \texttt{gpt-4o-mini} reader. \tenet{} ingestion is again zero-LLM (date-aware
 structured chunks + embeddings only):
@@ -523,6 +531,21 @@ Personalized-PageRank graph traversal is genuinely stronger at multi-hop chainin
 narrative text. LME(S*) is 4.4 points short after five documented retrieval iterations;
 the residual misses are answer-synthesis-bound (both arms identical), not
 retrieval-bound.
+
+\textbf{Test-Time Learning (third competency).} 5 ICL classification cells
+($\sim$6--8K ingested labelled demonstrations each; the recsys ranking cell is excluded
+--- different metric), official ICL prompt and substring-EM scoring, $k{=}20$ retrieved
+demonstrations, 100 held-out questions per cell, local \texttt{qwen2.5:7b} reader.
+\tenet{} pools \textbf{77.2} \ci{73.3}{80.7} ($n{=}500$; per cell: banking77 94.0,
+clinic150 88.0, nlu 82.0, trec-coarse 78.0, trec-fine 44.0) --- above BM25 (75.4) and
+every published memory system (MemGPT 67.6, Zep 62.8, HippoRAG-v2 61.4, Mem0 32.4,
+all on a \emph{stronger} \texttt{gpt-4o-mini} reader), and $\sim$5 points under its own
+long-context backbone ceiling where Mem0 loses 50 to its own. TTL is retrieval-bound
+with no conflicts to resolve, so the supersession machinery is inert and the
+matched-RAG control ties exactly, by design: the result is a breadth check showing
+zero-LLM ingestion costs nothing on the one axis the design cannot help. The one weak
+cell, trec-fine (44.0 vs the mini backbone's 66.0), is reader-limited --- a 50-way
+fine-grained label scheme --- not retrieval-limited.
 
 \subsection{Same-harness reproductions of published methods}\label{sec:baselines}
 To remove any backbone confound, we reimplement four published memory mechanisms as arms
@@ -787,11 +810,13 @@ work. Full tables and the LoRA training pipeline: \texttt{docs/BENCHMARK.md} \S1
 \texttt{scripts/distiller\_lora/}.
 
 \section{Discussion}
-\textbf{Where the belief state wins.} Both MAB competencies reward what supersession
-provides: FactConsolidation directly (the store contains exactly one current value; no
-per-read freshness inference), EventQA indirectly (date-aware structured chunks preserve
-event order that flat chunking destroys). The churn benchmark isolates the mechanism:
-immunity is by construction, not tuning.
+\textbf{Where the belief state wins.} The two conflict-bearing MAB competencies reward
+what supersession provides: FactConsolidation directly (the store contains exactly one
+current value; no per-read freshness inference), EventQA indirectly (date-aware
+structured chunks preserve event order that flat chunking destroys). Test-Time
+Learning, which has no conflicts, shows exact parity with the matched-RAG control ---
+the consistency machinery costs nothing where it is inert. The churn benchmark isolates
+the mechanism: immunity is by construction, not tuning.
 
 \textbf{Where it loses.} Multi-hop chaining over narrative text (RULER MH-QA) rewards
 explicit graph traversal; a keyed belief state has no edges to walk. Multi-session
