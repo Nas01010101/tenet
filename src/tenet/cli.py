@@ -242,6 +242,18 @@ def cmd_serve_api(args) -> int:
     return 0
 
 
+# ---- timeline / export (renderers live in cli_timeline.py; thin wrappers here) --
+
+def cmd_timeline(args) -> int:
+    from . import cli_timeline
+    return cli_timeline.cmd_timeline(args, _out, _err)
+
+
+def cmd_export(args) -> int:
+    from . import cli_timeline
+    return cli_timeline.cmd_export(args, _out, _err)
+
+
 # ---- bench (dispatcher lives in bench_cli.py; thin wrappers here) -----------
 
 def cmd_bench(args) -> int:
@@ -263,8 +275,19 @@ def _add_db(p: argparse.ArgumentParser) -> None:
     p.add_argument("--db", default=None, help="sqlite db path (default: data/tenet.db)")
 
 
+def _version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("tenet-memory")
+    except PackageNotFoundError:
+        # editable/unpackaged checkout (e.g. running from a git clone with no
+        # `pip install -e .` yet) — a real string beats a traceback.
+        return "0.1.0-dev"
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="tenet", description="Self-managing bi-temporal memory for LLM agents.")
+    p.add_argument("--version", action="version", version=f"tenet {_version()}")
     sub = p.add_subparsers(dest="command")
 
     s = sub.add_parser("chat", help="interactive assistant with long-term memory")
@@ -296,6 +319,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("sweep", help="run the forgetting sweep")
     _add_db(s); s.set_defaults(func=cmd_sweep)
+
+    s = sub.add_parser("timeline", help="bi-temporal history of a belief — the supersession "
+                        "chain, visualized (zero API key, works on an empty db)")
+    s.add_argument("key", nargs="?", default=None,
+                    help="show this key's full history (current + superseded); "
+                         "omit to list current beliefs, one row per key")
+    s.add_argument("--all", action="store_true",
+                    help="with no KEY: show full supersession history for every key, not just current")
+    s.add_argument("--json", action="store_true", help="machine-readable JSON instead of a rendered timeline")
+    _add_db(s); s.set_defaults(func=cmd_timeline)
+
+    s = sub.add_parser("export", help="dump the full belief state (current + superseded) as JSON to stdout")
+    s.add_argument("--json", action="store_true", help="compact single-line JSON (default: pretty, indent=2)")
+    _add_db(s); s.set_defaults(func=cmd_export)
 
     s = sub.add_parser("serve-mcp", help="run the MCP server (stdio)")
     s.set_defaults(func=cmd_serve_mcp)

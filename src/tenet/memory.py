@@ -1035,7 +1035,8 @@ class MemoryCore:
                     cur = r["expired_at"] is None
                     p = self._p_valid(r, dyn, now) if cur else None
                     out.append({"id": r["id"], "key": r["skey"] or "(unkeyed)", "text": r["text"],
-                                "valid_at": r["valid_at"], "expired_at": r["expired_at"],
+                                "valid_at": r["valid_at"], "created_at": r["created_at"],
+                                "expired_at": r["expired_at"], "source": r["source"],
                                 "status": "current" if cur else "superseded",
                                 "p_valid": None if p is None else round(p, 3)})
                 return out
@@ -1043,7 +1044,8 @@ class MemoryCore:
             rows.sort(key=lambda r: (r["skey"] or "(unkeyed)", r["valid_at"]))
             return [
                 {"id": r["id"], "key": r["skey"] or "(unkeyed)", "text": r["text"],
-                 "valid_at": r["valid_at"], "expired_at": r["expired_at"],
+                 "valid_at": r["valid_at"], "created_at": r["created_at"],
+                 "expired_at": r["expired_at"], "source": r["source"],
                  "status": "current"}
                 for r in rows
             ]

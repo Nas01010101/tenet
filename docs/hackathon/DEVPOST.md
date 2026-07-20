@@ -53,6 +53,35 @@ that remembers you across sessions and stays correct when your facts change:
   agent) gets persistent, self-managing memory with no glue code
   (`src/tenet/mcp_server.py`).
 
+**How it's different — and what's honestly shared.** Bi-temporal validity is not our
+invention: Zep/Graphiti (arXiv:2501.13956) and Engram (arXiv:2606.09900) also keep
+valid-time + transaction-time and invalidate rather than delete. Tenet's originality is
+in what it *removes* to deliver the same temporal correctness:
+- **No graph database.** Zep/Graphiti runs on Neo4j/FalkorDB; Tenet is `pip install` —
+  SQLite + numpy, embedded in your process.
+- **No LLM in the supersession path.** Zep detects contradictions with an LLM judgment
+  over candidate edges at ingest; Tenet's distiller emits a stable `subject::attribute`
+  key once, and supersession is a deterministic key collision — $0, auditable,
+  same-input-same-output.
+- **No LLM anywhere on the read path** — recall, time-travel, budget-fill, forgetting
+  and multi-hop `navigate()` are embeddings + closed-form math, low-milliseconds.
+- **A belief state you can open and read** — `get_all()` returns
+  `subject::attribute → value`, current vs. superseded — not opaque vectors or graph
+  nodes — plus an evaluation discipline (Wilson CIs on every number, self-falsified
+  claims, four features shipped default-OFF because we measured them as no-benefit)
+  that the 2026 reproduction audits show is the field's actual gap.
+
+One line: **Zep's temporal correctness, Mem0's drop-in API, and a belief state you can
+actually read — with zero infrastructure.** Full honest matrix incl. Engram:
+[`docs/COMPARISON.md`](../COMPARISON.md).
+
+And the design isn't waiting for a user: our Track 3 entry **Majalis** (agent society,
+github.com/Nas01010101/majalis) runs its shared belief board on Tenet's exact supersession
+design — same keyed `entity::attribute` collision semantics, retire-never-delete, as an
+independent in-process implementation — with four heterogeneous Qwen agents writing through
+it in a live, deployed product. The mechanism is proven under real multi-agent load, not
+just benchmarks.
+
 ## How we built it
 Built on **Qwen Cloud end to end**, three distinct Qwen Cloud APIs each doing the job
 it's best at, through one fail-loud provider layer (`src/tenet/config.py`) that swaps
@@ -76,9 +105,9 @@ Qwen/OpenRouter/Ollama by env var with zero code change:
   supersessions, 0.0 fabrication, and 0.775 key-consistency — *beating* the cloud
   reference's own 0.707 (`docs/BENCHMARK.md` §10).
 - Ships as a real product: `pip install tenet-memory` (once published), a CLI
-  (`tenet chat/remember/recall/navigate/stats/doubts/sweep`), an HTTP API + a
-  belief-ledger web demo (`src/tenet/static/index.html`), a LangGraph `BaseStore`
-  adapter, and a 2-page paper + full preprint in `paper/`.
+  (`tenet chat/remember/recall/navigate/stats/doubts/sweep/timeline/export`), an HTTP
+  API + a belief-ledger web demo (`src/tenet/static/index.html`), LangGraph `BaseStore`
+  + LlamaIndex `BaseMemoryBlock` adapters, and a 2-page paper + full preprint in `paper/`.
 
 ## Challenges we ran into
 **The falsified-gate story.** We pre-registered success gates for two ideas before
@@ -132,11 +161,18 @@ half-life), not a full close of the gap (`docs/BENCHMARK.md` §9–9.1).
   Tenet holds 100% throughout.
 - **MAB Accurate-Retrieval: 59.3 average, 2nd of all published systems** (20+ points
   above Mem0/Zep/MemGPT), and beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6).
-- Best accuracy-per-token on LongMemEval_S (49.2 vs RAG's 27.4 per 1k tokens).
+- **MAB Test-Time Learning: 77.2 average (n=500)** — above BM25 (75.4) and every
+  published memory system (Zep 62.8, MemGPT 67.6, Mem0 32.4) on a *weaker*, $0 local
+  7B reader; 3 of MAB's 4 competencies now covered.
+- Best accuracy-per-token on LongMemEval_S (49.2 vs RAG's 27.4 per 1k tokens); on Qwen
+  Cloud's own product reader (`qwen3.7-plus`, n=100) Tenet reaches **81.0% vs matched
+  RAG's 79.0%** at 100% recall@10 and 98.5% less context than full history.
 - **Beats ReMe — Alibaba's own agent-memory framework — head-to-head, 67% vs 34%** on
   LongMemEval_S n=100, running ReMe's released pipeline end-to-end as a black box
   (its own `auto_memory` ingest + BM25 retrieval) with the identical Qwen reader/judge
-  for every arm; McNemar p ≈ 2×10⁻⁶, Tenet ahead on every question type
+  for every arm; McNemar p ≈ 2×10⁻⁶, Tenet ahead on every question type. A supplementary
+  arm running ReMe's own answering agent as-shipped lands at a statistically
+  indistinguishable 37.0% (p=0.55) — the gap is not a protocol artifact
   (`docs/BENCHMARK.md` §15).
 - We report the honest losses too: multi-session synthesis and multi-hop chaining are
   documented weak spots, not hidden — every number reproduces from one CLI command
@@ -182,8 +218,9 @@ Protocol · FastAPI · SQLite · NumPy · Alibaba Cloud OSS · LangGraph · Pyth
   in About)
 - **Live demo, running on Alibaba Cloud:** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
   (Function Compute; belief-ledger UI at `/`, `curl .../health`)
-- **60-second zero-key demo:** `pip install tenet-memory[local]` then
-  `python examples/00_zero_key_demo.py`
+- **Zero-key demo (one command, no API key):** `git clone https://github.com/Nas01010101/tenet
+  && cd tenet && pip install -e ".[local]" && python examples/00_zero_key_demo.py` —
+  measured 94 s clone-to-output on a warm pip cache (first install pulls ~1 GB of wheels)
 - **MCP config:** `examples/03_mcp_client.md`
 
 ## Links

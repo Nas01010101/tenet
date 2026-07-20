@@ -54,18 +54,25 @@ above the published state of the art (78.0)**, and ties multi-hop SOTA (30.2), u
 *weaker* backbone and zero-LLM ingestion (official metric + prompt verbatim, all 800
 questions, Wilson CIs). On MAB **Accurate-Retrieval** it averages **59.3 — 2nd among the
 published memory frameworks we compare to** (behind HippoRAG-v2's 65.1; 20+ points above
-Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. We also reimplemented
+Mem0/Zep/MemGPT) and **beats every published memory framework on EventQA (70.7 vs 67.6; long-context baselines reach 82.6)**. On MAB **Test-Time Learning** (the third of MAB's four
+competencies) Tenet averages **77.2 (n=500)** — above BM25 (75.4) and every published memory
+system (Zep 62.8, MemGPT 67.6, Mem0 32.4) on a *weaker*, $0 local 7B reader. We also reimplemented
 four rival paper methods (Mem0, CAR, HippoRAG-v2, MemAgent) in the same harness: **Tenet
 leads every arm on both axes**. On our controlled knowledge-churn *primitive* (one templated
 attribute), **RAG collapses 100%→50% while Tenet holds 100%** — while on the harsher
 *paraphrased* multi-attribute ChurnBench a read-time consistency fix (now default-on) lifts
 Tenet from worst-arm to 98/92/82 at U=2/8/32, with delete-outright consolidation still
 leading at extreme churn (`docs/BENCHMARK.md` §9). On
-LongMemEval_S Tenet has the best accuracy-per-token (49.2 vs RAG 27.4 per 1k tokens).
+LongMemEval_S Tenet has the best accuracy-per-token (49.2 vs RAG 27.4 per 1k tokens),
+and on Qwen Cloud's own product reader (`qwen3.7-plus`, n=100) reaches **81.0% vs matched
+RAG's 79.0%** at 100% recall@10 and 98.5% less context than full history — winning the
+multi-session (75.0 vs 54.2) and temporal-reasoning (80.0 vs 73.3) categories.
 And in a direct head-to-head against **ReMe — Alibaba's own agent-memory framework, run
 as a black box through its own released pipeline** — Tenet scores **67% vs ReMe's 34%**
 on LongMemEval_S n=100 (same Qwen reader/judge for every arm, McNemar p ≈ 2×10⁻⁶,
-Tenet ahead on every question type; `docs/BENCHMARK.md` §15).
+Tenet ahead on every question type; a supplementary arm running ReMe's own answering
+agent as-shipped lands at a statistically indistinguishable 37.0%, p=0.55 — the gap is
+not a protocol artifact; `docs/BENCHMARK.md` §15).
 Honest weak spots — multi-session synthesis and multi-hop chaining — are reported, not
 hidden. Every number reproduces from one documented command: `docs/BENCHMARK.md`.
 
@@ -111,6 +118,12 @@ with a 2-page paper + full preprint in `paper/`.
   `doubts`→time-travel runs with zero cloud calls, network off included.
 
 ### Innovation (30%) — non-trivial logic, modularity, error handling
+- **Positioned against the field, not in a vacuum**: bi-temporal validity is shared
+  with Zep/Graphiti (arXiv:2501.13956) and Engram (arXiv:2606.09900) — Tenet's claim
+  is the first *embedded, deterministic* version: no graph database (SQLite + numpy),
+  no LLM judgment in the supersession path (stable-key collision instead of per-edge
+  contradiction calls), no LLM anywhere on the read path, and a human-readable belief
+  state. See `docs/COMPARISON.md` for the honest matrix.
 - **Memory as a self-consistent belief state, not a document log**: bi-temporal
   supersession (`memory.py:store`), belief–evidence consistency (a raw slice echoing a
   *superseded* belief is retired from recall, `_STALE_ECHO`), and surprise-gated writes
@@ -154,6 +167,13 @@ with a 2-page paper + full preprint in `paper/`.
   claimed here.
 
 ### Impact (25%)
+- **A general primitive, not a niche demo**: the same engine backs five deployment
+  patterns that all ship in-repo today — MCP memory for any client, framework memory
+  (LangGraph `BaseStore`, LlamaIndex `BaseMemoryBlock`, LangChain, Mem0-compatible API),
+  support/CRM account-state truth (the churn regime), multi-agent shared state (the
+  Majalis pattern), and audited "what did we believe when" workflows (provenance +
+  `as_of` + `tenet timeline`/`export`). Reads stay ~9–12 ms flat from 1k to 100k facts
+  on one SQLite file — scaling never becomes "operate a database cluster."
 - **Beats published SOTA on the standardized benchmark**: MemoryAgentBench (arXiv:2507.05257)
   FactConsolidation single-hop **86.5% pooled**, above published mini-tier SOTA (78.0),
   on a *weaker* local-7B backbone with zero-LLM ingestion — `docs/BENCHMARK.md` §6.
@@ -179,7 +199,11 @@ with a 2-page paper + full preprint in `paper/`.
   LangGraph agent bi-temporal supersession — a re-`put()` of the same `(namespace, key)`
   retires the old value to history instead of overwriting it — for free. Optional extra
   `pip install tenet-memory[langgraph]`, tested end to end in
-  `scripts/test_langgraph_store.py`.
+  `scripts/test_langgraph_store.py`. Same pattern for LlamaIndex: `TenetMemoryBlock`
+  (`src/tenet/integrations/llamaindex.py`) implements the modern `BaseMemoryBlock`
+  contract — unlike the shipped fact-list block, a changed fact supersedes instead of
+  contradicting; LLM-free `aget`, ranked-line `atruncate` — `[llamaindex]` extra,
+  tested in `scripts/test_llamaindex_block.py`.
 
 ### Presentation (15%)
 - **One-page architecture doc** with a Mermaid component diagram, the drift-model
@@ -193,8 +217,9 @@ with a 2-page paper + full preprint in `paper/`.
 - Every benchmark number reproduces from one documented CLI command
   (`tenet bench run <name>`, `docs/BENCHMARK.md`); honest weak spots (multi-session
   synthesis, multi-hop chaining) are reported, not hidden.
-- **A 60-second, zero-API-key first run**: `pip install tenet-memory[local]` then
-  `python examples/00_zero_key_demo.py` walks the whole LLM-free read path
+- **A zero-API-key first run**: `git clone … && pip install -e ".[local]"` then
+  `python examples/00_zero_key_demo.py` (94 s clone-to-output on a warm pip cache;
+  first install pulls ~1 GB of wheels) walks the whole LLM-free read path
   (supersession, time-travel, learned-dynamics doubts) with no signup and no network
   call — the lowest-friction way a judge can see the belief-state mechanism work.
 - **`CHANGELOG.md`** (Keep a Changelog format) tracks every notable change since

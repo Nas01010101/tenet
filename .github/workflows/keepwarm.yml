@@ -1,0 +1,28 @@
+name: keep-warm
+
+# Keeps the Function Compute demo warm through the judging window (Jul 28 – Aug 11):
+# a cold FC instance made the first /ingest exceed 60 s in testing, which would stall
+# a judge's first "Run the story" click. One full write-path ping every 30 min keeps
+# the instance and the distill path hot. Cost: one qwen3.6-flash call per ping.
+# Safe to delete after judging ends.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: warm health + full write path
+        run: |
+          set -e
+          B=https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
+          curl -sf --max-time 30 "$B/health"
+          C=$(mktemp)
+          curl -sf -c "$C" -X POST "$B/reset" --max-time 30 >/dev/null
+          curl -sf -b "$C" -H 'Content-Type: application/json' -X POST "$B/ingest" \
+            -d '{"message":"keep-warm ping: the demo is alive"}' --max-time 150 >/dev/null
+          echo "warm ✓"

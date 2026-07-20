@@ -81,6 +81,31 @@ mem.get_all(user_id="alex")                        # → readable belief state, 
 
 Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](docs/COMPARISON.md).
 
+**One design, two shipped products.** [Majalis](https://github.com/Nas01010101/majalis) — our
+Track 3 agent society — runs its shared belief board on Tenet's exact supersession design
+(same keyed `entity::attribute` collision semantics, retire-never-delete, as an independent
+in-process implementation): four heterogeneous Qwen agents write through it live, and a
+learned world model reads the belief state to decide when debate is worth spending. The
+mechanism generalizes beyond personal memory — it's load-bearing in a second product.
+
+## What you'd build on it
+
+Tenet is not a personal-assistant gadget — it's the general primitive for **any state that
+must be *currently true* while its history stays auditable**. Every pattern below runs on a
+surface that already ships in this repo:
+
+| You're building | The failure Tenet removes | Shipped surface |
+|---|---|---|
+| An agent in Claude Desktop / an IDE / any MCP client | memory that silently goes stale as facts change | MCP server (`learn`/`recall`/`time_travel`/`doubts`) |
+| A LangGraph / LlamaIndex / LangChain / Mem0-style app | framework memory that keeps *both* the old and new value | `BaseStore` · `BaseMemoryBlock` · `TenetMemory` adapters, Mem0-compatible API |
+| A support / CRM / ops bot over account state | answering from a superseded plan, address, or entitlement | keyed supersession + the churn result (RAG collapses 100→50%, Tenet holds 100%) |
+| A multi-agent system with shared state | concurrent writers trampling each other's facts | the Majalis pattern: supersession as the write-arbitration rule |
+| Anything audited or regulated | "what did we believe when we decided X?" is unanswerable | provenance + `recall(as_of=…)` + `tenet timeline`/`export` |
+
+And it scales like a library, not a service: reads are **~9–12 ms flat from 1k to 100k
+facts** on a laptop (embeddings + closed-form math over one SQLite file), so "add memory"
+never becomes "operate a database cluster."
+
 > **Reproducibility is the pitch.** Independent 2026 audits found the field's headline
 > numbers don't survive reproduction — Mem0 claims 93.4% on LongMemEval but reproduces at
 > [73.8% on the standardized harness](docs/COMPARISON.md#-frontier-reality-check--the-2026-reproduction-crisis-verified-2026-07-14);
@@ -95,6 +120,7 @@ Full honest matrix + benchmark comparability caveats: [`docs/COMPARISON.md`](doc
 |---|---|---:|---:|---|
 | MemoryAgentBench FactConsolidation (arXiv:2507.05257), single-hop | SubEM, pooled 6K–262K | **86.5** [82.8, 89.5] | published mini-tier SOTA 78.0 · naive-RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | avg. official metric | **59.3** (2nd of all published systems) | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
+| MAB Test-Time Learning (5 ICL cells, n=500) | official substr-EM, avg | **77.2** [73.3, 80.7] (local 7B reader, $0) | > BM25 75.4 · MemGPT 67.6 · Zep 62.8 · Mem0 32.4 (GPT-4o-mini reader) | [`BENCHMARK.md` §16](docs/BENCHMARK.md#16-mab-test-time-learning--the-third-mab-competency-scriptsbench_mab_ttlpy) |
 | Knowledge-churn horizon (fact updated 2→12×) | current-value accuracy | **100%** throughout | naive-RAG collapses 100%→50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
 | LongMemEval_S (n=100, `qwen3.7-plus` Qwen-Cloud reader) | QA accuracy | **81.0%** | ≥ matched RAG 79.0% · **100%** recall@10 · **98.5% less context** than full | [`BENCHMARK.md` §1–2](docs/BENCHMARK.md#1-retrieval-recall--longmemeval_s-scriptslme_recallpy) |
 | Local LoRA distiller (offline, zero-cloud) | key-consistency, decontaminated | **0.775** | cloud reference (`qwen3.7-plus`) 0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
@@ -196,12 +222,16 @@ Read the 2-page paper: **[`paper/tenet.md`](paper/tenet.md)**.
 
 ## Quickstart
 
-### 1. 60 seconds, no API key
+### 1. One command, no API key
 
 ```bash
-pip install tenet-memory[local]             # bge-small embedder, CPU — no network call at all
+git clone https://github.com/Nas01010101/tenet && cd tenet
+pip install -e ".[local]"                   # bge-small embedder, CPU — runs fully offline after install
 python examples/00_zero_key_demo.py         # supersession + time-travel + doubts, zero LLM calls
 ```
+Measured cold-start: **94 s clone-to-output on a warm pip cache** (the `[local]` extra pulls
+`sentence-transformers`/torch — first-ever install downloads ~1 GB of wheels, so budget a few
+minutes on a cold network; every run after that is offline and instant).
 Walks the entire LLM-free read path end to end — recall, supersession, time-travel, and the
 learned-dynamics `doubts` — against a pre-formed fact ledger. The one thing it *can't* show is
 `ingest()` turning free-form conversation into those facts; that's the one call in Tenet that
@@ -219,9 +249,12 @@ python -m tenet.mcp_server                   # or the MCP server (learn/recall/n
 `pip install -e .` alone only pulls the base library (`openai`, `numpy`) — the API server and
 MCP server need the `api`/`mcp` extras (bundled in `[all]` above), or install just what you need,
 e.g. `pip install -e ".[api]"`. No key yet? `tenet recall` / `tenet navigate` / `tenet stats` /
-`tenet doubts` work fully offline with `EMBED_PROVIDER=local` (installs `sentence-transformers`,
-no network call at all); `tenet remember` / `tenet chat` / the MCP `learn` tool need a real
-`DASHSCOPE_API_KEY` (or `LLM_PROVIDER=openrouter`) since they distill text with an LLM call —
+`tenet doubts` / `tenet timeline` / `tenet export` work fully offline with `EMBED_PROVIDER=local`
+(installs `sentence-transformers`, no network call at all) — `tenet timeline --all` is the
+fastest way to *see* the bi-temporal supersession chain: current value highlighted, retired
+values dimmed, each with its `valid_at`/`created_at`/source. `tenet remember` / `tenet chat` /
+the MCP `learn` tool need a real `DASHSCOPE_API_KEY` (or `LLM_PROVIDER=openrouter`) since they
+distill text with an LLM call —
 without one you'll see a clear "memory write failed: ..." error rather than a silent no-op.
 
 Default DB location: `data/tenet.db` (repo-local, gitignored, created on first write — no setup
@@ -229,12 +262,14 @@ needed). Override with `TENET_DB_PATH=/path/to/db`. If `data/` can't be created 
 machine, the default falls back automatically to `~/.tenet/tenet.db`.
 
 More in [`examples/`](examples/) — zero-key demo, quickstart, assistant loop, MCP client,
-LangChain adapter, LangGraph `BaseStore` adapter.
+LangChain adapter, LangGraph `BaseStore` adapter, LlamaIndex memory block.
 
 **Works with:** any MCP client ([Claude Desktop](examples/03_mcp_client.md), IDEs, other
 agents) · [LangChain](examples/04_langchain_memory.py) via a thin `TenetMemory` adapter ·
-[LangGraph](examples/05_langgraph_store.py) via a `BaseStore` adapter (below) · plain HTTP
-(`tenet.api:app`, `POST /chat`).
+[LangGraph](examples/05_langgraph_store.py) via a `BaseStore` adapter (below) ·
+[LlamaIndex](examples/06_llamaindex_memory.py) via a `BaseMemoryBlock`
+(`pip install tenet-memory[llamaindex]` — unlike the shipped fact-list block, a changed
+fact *supersedes* instead of contradicting) · plain HTTP (`tenet.api:app`, `POST /chat`).
 
 ### LangGraph `BaseStore` adapter
 
@@ -440,9 +475,11 @@ src/tenet/  core.py memory.py distill.py config.py   the belief-state memory eng
             agent.py                                  the assistant
             mcp_server.py api.py alicloud_oss.py      surfaces + Alibaba Cloud deploy
             integrations/langgraph.py                 LangGraph BaseStore adapter
+            integrations/llamaindex.py                LlamaIndex BaseMemoryBlock adapter
 examples/   00_zero_key_demo.py 01_quickstart.py 02_assistant.py 04_langchain_memory.py
-            05_langgraph_store.py                     zero-key demo, quickstart, assistant loop,
-                                                        LangChain + LangGraph adapters
+            05_langgraph_store.py 06_llamaindex_memory.py
+                                                      zero-key demo, quickstart, assistant loop,
+                                                        LangChain + LangGraph + LlamaIndex adapters
 scripts/    demo_agent.py    video walkthrough
             bench_horizon.py bench_factcon.py bench_mab_ar.py lme_recall.py   benchmarks
             test_memory.py test_dynamics.py test_agent_uncertainty.py test_errors.py

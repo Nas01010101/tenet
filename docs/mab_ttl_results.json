@@ -1,0 +1,144 @@
+{
+  "config": {
+    "benchmark": "MAB Test-Time Learning / ICL (MemoryAgentBench, arXiv:2507.05257)",
+    "split": "Test_Time_Learning",
+    "cells": [
+      "icl_banking77",
+      "icl_clinic150",
+      "icl_nlu",
+      "icl_trec_coarse",
+      "icl_trec_fine"
+    ],
+    "reader": "qwen2.5:7b",
+    "embedder": "local bge-small",
+    "scoring": "MAB official ICL: parse_output + substring_exact_match, max over golds (verbatim)",
+    "prompt": "MAB official ICL 'rag_agent' template, verbatim",
+    "reproduce": "LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local python scripts/bench_mab_ttl.py --qpc 100 --k 20"
+  },
+  "provenance": {
+    "backbone": "ollama",
+    "reader_model": "qwen2.5:7b",
+    "embedder": "local",
+    "k": 20,
+    "qpc": 100,
+    "wall_s": 308
+  },
+  "per_cell": {
+    "icl_banking77": {
+      "n": 100,
+      "errors": 0,
+      "rag": {
+        "substr_acc": 94.0,
+        "substr_ci_lo": 87.5,
+        "substr_ci_hi": 97.2,
+        "int_acc": 93.0,
+        "substr_correct": 94,
+        "int_correct": 93
+      },
+      "tenet": {
+        "substr_acc": 94.0,
+        "substr_ci_lo": 87.5,
+        "substr_ci_hi": 97.2,
+        "int_acc": 93.0,
+        "substr_correct": 94,
+        "int_correct": 93
+      }
+    },
+    "icl_clinic150": {
+      "n": 100,
+      "errors": 0,
+      "rag": {
+        "substr_acc": 88.0,
+        "substr_ci_lo": 80.2,
+        "substr_ci_hi": 93.0,
+        "int_acc": 88.0,
+        "substr_correct": 88,
+        "int_correct": 88
+      },
+      "tenet": {
+        "substr_acc": 88.0,
+        "substr_ci_lo": 80.2,
+        "substr_ci_hi": 93.0,
+        "int_acc": 88.0,
+        "substr_correct": 88,
+        "int_correct": 88
+      }
+    },
+    "icl_nlu": {
+      "n": 100,
+      "errors": 0,
+      "rag": {
+        "substr_acc": 82.0,
+        "substr_ci_lo": 73.3,
+        "substr_ci_hi": 88.3,
+        "int_acc": 81.0,
+        "substr_correct": 82,
+        "int_correct": 81
+      },
+      "tenet": {
+        "substr_acc": 82.0,
+        "substr_ci_lo": 73.3,
+        "substr_ci_hi": 88.3,
+        "int_acc": 81.0,
+        "substr_correct": 82,
+        "int_correct": 81
+      }
+    },
+    "icl_trec_coarse": {
+      "n": 100,
+      "errors": 0,
+      "rag": {
+        "substr_acc": 78.0,
+        "substr_ci_lo": 68.9,
+        "substr_ci_hi": 85.0,
+        "int_acc": 78.0,
+        "substr_correct": 78,
+        "int_correct": 78
+      },
+      "tenet": {
+        "substr_acc": 78.0,
+        "substr_ci_lo": 68.9,
+        "substr_ci_hi": 85.0,
+        "int_acc": 78.0,
+        "substr_correct": 78,
+        "int_correct": 78
+      }
+    },
+    "icl_trec_fine": {
+      "n": 100,
+      "errors": 0,
+      "rag": {
+        "substr_acc": 44.0,
+        "substr_ci_lo": 34.7,
+        "substr_ci_hi": 53.8,
+        "int_acc": 43.0,
+        "substr_correct": 44,
+        "int_correct": 43
+      },
+      "tenet": {
+        "substr_acc": 44.0,
+        "substr_ci_lo": 34.7,
+        "substr_ci_hi": 53.8,
+        "int_acc": 43.0,
+        "substr_correct": 44,
+        "int_correct": 43
+      }
+    }
+  },
+  "pooled": {
+    "rag": {
+      "substr_acc": 77.2,
+      "substr_ci_lo": 73.3,
+      "substr_ci_hi": 80.7,
+      "int_acc": 76.6,
+      "n": 500
+    },
+    "tenet": {
+      "substr_acc": 77.2,
+      "substr_ci_lo": 73.3,
+      "substr_ci_hi": 80.7,
+      "int_acc": 76.6,
+      "n": 500
+    }
+  }
+}

@@ -113,6 +113,18 @@ not treated as load-bearing. Artifacts: `docs/lme_multireader_results.json`,
 `docs/lme_unbatched_*.jsonl`. See [`METHODOLOGY.md`](METHODOLOGY.md) Defect 8 (now
 resolved by re-measurement).
 
+**Independent scripted verification of the Gemini row (2026-07-19).** The Gemini
+un-batched row was re-run end-to-end through a single scripted pipeline
+(`scripts/lme_reader_gemini_cli.py`: same n=40 seed=0 k=10 instances, same local
+embedder + qwen distiller ingestion, reader routed one-call-per-item through the
+Gemini CLI, judge held on `qwen3.7-plus`; 62 reader calls, 0 retries, 0 exclusions).
+Result: RAG **67.5** [52.0, 79.9] vs Tenet efficiency **72.5** [57.2, 83.9] — the
+**+5.0pp Tenet–RAG gap reproduces exactly**; each arm moved by one question absolute
+vs the recorded row (27 vs 28, 29 vs 30 correct), i.e. reader stochasticity at n=40,
+not a protocol effect. Knowledge-update went 7/7 for Tenet vs 5/7 RAG; temporal
+reasoning 8/13 vs 6/13. Artifacts: `docs/lme_geminicli_verify.jsonl`,
+`docs/lme_geminicli_verify.summary.json`.
+
 **Definitive on-Qwen result (n=100, `qwen3.7-plus` reader, fully Qwen Cloud, 2026-07-12).**
 The load-bearing LongMemEval number: run entirely on the shipped product stack (Qwen Cloud
 embedder + reader over REST — no local model, no off-Qwen reader), n=100, parity operating
@@ -1041,6 +1053,68 @@ Reproduce: `python scripts/reme_preingest.py --n 100 --reme-venv <venv> --worksp
 --reme-venv <venv> --workspace-root <ws> --budget-cap 10 --out <rows.jsonl>` (CI smoke:
 suite 17 runs the dry-run path).
 
+## 16. MAB Test-Time Learning — the third MAB competency (`scripts/bench_mab_ttl.py`)
+
+MemoryAgentBench's Test-Time Learning split measures whether a memory system lets the
+reader *learn a task at inference* from ~6–8K ingested labelled demonstrations (5
+text-classification cells; the recsys ranking cell is excluded — different metric,
+Recall@5, and a 5.6M-char context). This competency is **purely retrieval-bound**:
+there is no supersession, churn, or conflict, so Tenet's bi-temporal machinery is
+inert here. We run it for breadth — covering **3 of MAB's 4 competencies** — and to
+show the zero-LLM embedding-ingestion path is not *worse* than a strong RAG control
+on the one axis the design can't help. The honest expectation is parity, and parity
+is exactly what we measure.
+
+**Protocol** (verbatim MAB): official ICL `rag_agent` reader prompt; official scoring
+(`parse_output` → `substring_exact_match`, max over golds), plus a stricter
+first-integer-exact metric as a floor against substring false-positives on
+single-digit labels. k=20 retrieved demos, 100 held-out questions per cell, both arms
+share identical demo embeddings (matched by construction). Reader = **local
+`qwen2.5:7b`** (ollama) + local bge-small embedder — the same $0 stack as
+FactConsolidation §6. 0 API errors / 1,000 reader calls.
+
+| cell (classes) | RAG substr | **Tenet** substr | Tenet int-exact |
+|---|---:|---:|---:|
+| banking77 (77) | 94.0 | **94.0** [87.5, 97.2] | 93.0 |
+| clinic150 (150) | 88.0 | **88.0** [80.2, 93.0] | 88.0 |
+| nlu (68) | 82.0 | **82.0** [73.3, 88.3] | 81.0 |
+| trec-coarse (6) | 78.0 | **78.0** [68.9, 85.0] | 78.0 |
+| trec-fine (50) | 44.0 | **44.0** [34.7, 53.8] | 43.0 |
+| **pooled (n=500)** | 77.2 | **77.2** [73.3, 80.7] | 76.6 |
+
+**Against the published table** (MAB Tables 3/7 — their RAG/memory rows use a
+GPT-4o-mini reader, so the comparison is indicative, not backbone-matched; ours is a
+*weaker* local 7B):
+
+| system | TTL avg |
+|---|---:|
+| GPT-4o long-context | 87.6 |
+| GPT-4o-mini long-context (backbone ceiling) | 82.0 |
+| Qwen3-Embedding-4B RAG | 78.0 |
+| **Tenet (local qwen2.5:7b reader, $0)** | **77.2** |
+| BM25 | 75.4 |
+| MemGPT | 67.6 |
+| **Zep** | 62.8 |
+| **HippoRAG-v2** | 61.4 |
+| **Mem0** | 32.4 |
+
+Tenet lands above BM25 and **every published dedicated memory system** — Zep, Mem0,
+HippoRAG-v2, MemGPT, MIRIX (38.4), Cognee (35.4) — despite the weaker reader, and
+~5 points under its own long-context backbone ceiling. The paper's headline TTL
+finding is that memory systems *hurt* in-context learning relative to dumping context
+(Mem0 loses 50 points to its own backbone); Tenet's ingestion loses ~5. Per-cell, the
+one miss is trec-fine (44.0 vs mini-backbone 66.0) — a 50-way fine-grained scheme
+where the 7B reader, not retrieval, is the bottleneck (banking77's 77-way scheme with
+more distinctive labels scores 94.0). We do not run MAB's fourth competency
+(Long-Range Understanding): its official metric is GPT-4o-judged summarization F1 —
+an off-stack judge we can't hold constant with the rest of this document.
+
+Artifact: [`mab_ttl_results.json`](mab_ttl_results.json) · per-question predictions:
+`docs_scratch/mab_ttl_preds.jsonl` (untracked scratch).
+Reproduce: `LLM_PROVIDER=ollama OLLAMA_MODEL=qwen2.5:7b EMBED_PROVIDER=local
+python scripts/bench_mab_ttl.py --qpc 100 --out docs/mab_ttl_results.json`
+(`OLLAMA_BASE_URL` may point at any ollama host).
+
 ## Reproduce
 
 Every benchmark is wired into the CLI as `tenet bench` — one command per number, with
@@ -1064,6 +1138,7 @@ tenet bench results                           # table of past runs (from data/be
 | §4 supersession | `tenet bench run knowledge-update --provider ollama --principals 4` |
 | §6 FactConsolidation | `tenet bench run factcon --provider ollama --qpc 100 --tenet-read decompose --keys heuristic` |
 | §7 MAB Accurate-Retrieval | `tenet bench run mab-ar --provider openrouter --qpc 100 --judge` |
+| §16 MAB Test-Time Learning | `tenet bench run mab-ttl --provider ollama --qpc 100` |
 | LME-V2 mechanism smoke | `tenet bench run lmev2 --provider local --domain enterprise --n-trajectories 8` |
 | §6.1 paper-method arms | `python scripts/bench_baselines.py --arms car,mem0,hipporag,memagent --qpc 100` (raw script) |
 | §9 ChurnBench | `tenet bench run churnbench --seed 1 --principals 10 -- --n-facts 5 --distractor-sessions 4 --k 10` |

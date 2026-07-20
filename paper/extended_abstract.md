@@ -59,13 +59,16 @@ same-harness naive-RAG scores 47.8 / 4.5. In a backbone-matched reimplementation
 published mechanisms (CAR, Mem0-style, HippoRAG-v2-style, MemAgent-style), Tenet leads
 every arm on both axes. Head-to-head against a released framework run black-box through
 its own pipeline (ReMe, reme-ai 0.4.1.1; identical Qwen reader/judge): **Tenet 67.0% vs
-ReMe 34.0%** on LongMemEval_S n=100, McNemar p ≈ 2×10⁻⁶ (matched RAG 64.0, blind 0.0).
+ReMe 34.0%** on LongMemEval_S n=100, McNemar $p \approx 2\times10^{-6}$ (matched RAG 64.0, blind 0.0).
 
 **MemoryAgentBench Accurate-Retrieval** (~2,000 questions, 197K–534K-token contexts,
 official metrics, matched reader): average **59.3** — second only to HippoRAG-v2 (65.1,
 which runs LLM OpenIE over every token; Tenet's ingestion never calls an LLM), 20+ points
 above Mem0 (32.6) and Zep (37.5), and ahead of the field on EventQA (70.7 vs 67.6, CI
-excludes). RULER multi-hop is the honest loss (45 vs 66).
+excludes). RULER multi-hop is the honest loss (45 vs 66). On MAB **Test-Time Learning**
+(n=500, official scoring) Tenet pools **77.2** — above BM25 (75.4) and every published
+memory system (Zep 62.8, Mem0 32.4) on a weaker, zero-cost local 7B reader — covering
+three of MAB's four competencies.
 
 **LongMemEval_S, on the shipped Qwen Cloud stack** (`qwen3.7-plus` reader, n=100):
 Tenet **81.0%** vs matched RAG 79.0%, at **100% recall@10** and **98.5% less context**
