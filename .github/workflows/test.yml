@@ -33,6 +33,8 @@ jobs:
         run: python scripts/test_providers.py
       - name: LangGraph BaseStore adapter tests (deterministic, no LLM)
         run: python scripts/test_langgraph_store.py
+      - name: CLI timeline/export/--version tests (deterministic, no LLM)
+        run: python scripts/test_cli_timeline.py
       - name: LlamaIndex BaseMemoryBlock adapter tests (deterministic, no LLM)
         run: python scripts/test_llamaindex_block.py
       - name: adaptive multi-hop navigation tests (deterministic, no LLM)

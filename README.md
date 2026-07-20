@@ -231,9 +231,12 @@ python -m tenet.mcp_server                   # or the MCP server (learn/recall/n
 `pip install -e .` alone only pulls the base library (`openai`, `numpy`) — the API server and
 MCP server need the `api`/`mcp` extras (bundled in `[all]` above), or install just what you need,
 e.g. `pip install -e ".[api]"`. No key yet? `tenet recall` / `tenet navigate` / `tenet stats` /
-`tenet doubts` work fully offline with `EMBED_PROVIDER=local` (installs `sentence-transformers`,
-no network call at all); `tenet remember` / `tenet chat` / the MCP `learn` tool need a real
-`DASHSCOPE_API_KEY` (or `LLM_PROVIDER=openrouter`) since they distill text with an LLM call —
+`tenet doubts` / `tenet timeline` / `tenet export` work fully offline with `EMBED_PROVIDER=local`
+(installs `sentence-transformers`, no network call at all) — `tenet timeline --all` is the
+fastest way to *see* the bi-temporal supersession chain: current value highlighted, retired
+values dimmed, each with its `valid_at`/`created_at`/source. `tenet remember` / `tenet chat` /
+the MCP `learn` tool need a real `DASHSCOPE_API_KEY` (or `LLM_PROVIDER=openrouter`) since they
+distill text with an LLM call —
 without one you'll see a clear "memory write failed: ..." error rather than a silent no-op.
 
 Default DB location: `data/tenet.db` (repo-local, gitignored, created on first write — no setup

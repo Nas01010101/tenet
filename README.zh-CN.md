@@ -219,8 +219,10 @@ python -m tenet.mcp_server                   # 或 MCP 服务器（learn/recall/
 ```
 仅 `pip install -e .` 只安装基础库（`openai`、`numpy`）——API 服务器与 MCP 服务器需要
 `api`/`mcp` 扩展（上面的 `[all]` 已包含），也可以按需安装，如 `pip install -e ".[api]"`。
-还没有密钥？`tenet recall` / `tenet navigate` / `tenet stats` / `tenet doubts` 配合
-`EMBED_PROVIDER=local` 完全离线可用（安装 `sentence-transformers`，无任何网络调用）；
+还没有密钥？`tenet recall` / `tenet navigate` / `tenet stats` / `tenet doubts` /
+`tenet timeline` / `tenet export` 配合 `EMBED_PROVIDER=local` 完全离线可用（安装
+`sentence-transformers`，无任何网络调用）——`tenet timeline --all` 是查看双时态取代链最快
+的方式：当前值高亮显示，被取代的旧值变暗，每条都带着 `valid_at`/`created_at`/来源信息。
 `tenet remember` / `tenet chat` / MCP 的 `learn` 工具需要真实的 `DASHSCOPE_API_KEY`
 （或 `LLM_PROVIDER=openrouter`），因为它们要用一次 LLM 调用来蒸馏文本——
 没有密钥时你会看到明确的 "memory write failed: ..." 报错，而不是静默失败。
