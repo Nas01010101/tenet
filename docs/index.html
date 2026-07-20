@@ -337,6 +337,20 @@ footer .wrap { display:flex; justify-content:space-between; gap:24px; flex-wrap:
     <strong>RAG loses 50 points; Tenet loses 0.</strong> This is the long-horizon regime memory exists for.</p>
   </div>
 
+  <div class="chartcard">
+    <div class="cc-head">
+      <div>
+        <h4>MemoryAgentBench · Test-Time Learning</h4>
+        <div class="cc-sub">5 ICL cells × 100 questions, official substring-EM · published rows use a stronger GPT-4o-mini reader (MAB Table 3)</div>
+      </div>
+    </div>
+    <div class="chart" id="ttlChart"></div>
+    <p style="font-size:13.5px;margin-top:8px">Retrieval-bound, nothing to supersede — so Tenet ties its matched-RAG
+    control exactly, <em>by design</em>, and the comparison is the published field: <strong>above BM25 and every
+    published memory system on a weaker, $0 local 7B reader</strong>, ~5 points under its own long-context backbone
+    ceiling where Mem0 loses 50 to its own. Breadth check, not a win claim: 3 of MAB’s 4 competencies covered.</p>
+  </div>
+
   <h3>Reader-generality — accuracy tracks the reader, memory stays ahead</h3>
   <p>On LongMemEval_S with retrieval already saturated (recall@10 = 97.5–100%), Tenet ≥ matched RAG under
   every reader tested — including Qwen Cloud’s own product stack:</p>
@@ -632,7 +646,43 @@ function drawH2H(){
   el("line",{x1:m.l,x2:m.l,y1:m.t,y2:H-m.b,class:"axis"},svg);
 }
 
-function drawAll(){ drawFC(); drawChurn(); drawH2H(); }
+/* MAB Test-Time Learning bars — Tenet measured (CI), published rows from MAB Table 3 */
+const TTL = [
+  { name:"GPT-4o-mini long-context", v:82.0, colorVar:"--faint", note:"backbone ceiling — full context, no memory system" },
+  { name:"Tenet (local 7B, $0)", v:77.2, ci:[73.3,80.7], colorVar:"--s-tenet", note:"n=500 · matched-RAG control ties exactly (retrieval-bound)" },
+  { name:"BM25", v:75.4, colorVar:"--s-rag", note:"published · GPT-4o-mini reader" },
+  { name:"MemGPT", v:67.6, colorVar:"--s-reme", note:"published · GPT-4o-mini reader" },
+  { name:"Zep", v:62.8, colorVar:"--s-reme", note:"published · GPT-4o-mini reader" },
+  { name:"HippoRAG-v2", v:61.4, colorVar:"--s-reme", note:"published · GPT-4o-mini reader" },
+  { name:"Mem0", v:32.4, colorVar:"--s-reme", note:"published · GPT-4o-mini reader" },
+];
+function drawTTL(){
+  const W=720, H=330, m={t:12,r:16,b:30,l:190};
+  const svg = frame(document.getElementById("ttlChart"), W, H);
+  const iw=W-m.l-m.r, ih=H-m.t-m.b, bh=(ih/TTL.length);
+  const X = v => m.l + iw*(v/100);
+  for (let g=0; g<=100; g+=25){
+    el("line",{x1:X(g),x2:X(g),y1:m.t,y2:H-m.b,class:"grid"},svg);
+    el("text",{x:X(g),y:H-8,"text-anchor":"middle"},svg).textContent=g+"%";
+  }
+  TTL.forEach((b,i)=>{
+    const y = m.t + i*bh + bh*0.18, h = bh*0.58, col=cssVar(b.colorVar);
+    el("text",{x:m.l-10,y:y+h/2+4,"text-anchor":"end",class:"dlab"},svg).textContent=b.name;
+    const rect = el("rect",{x:X(0),y,width:Math.max(2,X(b.v)-X(0)),height:h,rx:4,fill:col},svg);
+    if (b.ci){
+      el("line",{x1:X(b.ci[0]),x2:X(b.ci[1]),y1:y+h/2,y2:y+h/2,stroke:cssVar("--fg"),"stroke-width":1.5,opacity:0.65},svg);
+      [b.ci[0],b.ci[1]].forEach(c=>el("line",{x1:X(c),x2:X(c),y1:y+h/2-5,y2:y+h/2+5,stroke:cssVar("--fg"),"stroke-width":1.5,opacity:0.65},svg));
+    }
+    el("text",{x:X(b.ci?b.ci[1]:b.v)+8,y:y+h/2+4,class:"dlab"},svg).textContent=b.v.toFixed(1);
+    rect.addEventListener("mousemove",e=>showTT(
+      `<strong>${b.name}</strong> — ${b.v.toFixed(1)}${b.ci?`<br>Wilson 95% [${b.ci[0]}, ${b.ci[1]}]`:""}<br>${b.note}`,
+      e.clientX,e.clientY));
+    rect.addEventListener("mouseleave",hideTT);
+  });
+  el("line",{x1:m.l,x2:m.l,y1:m.t,y2:H-m.b,class:"axis"},svg);
+}
+
+function drawAll(){ drawFC(); drawChurn(); drawH2H(); drawTTL(); }
 drawAll();
 new MutationObserver(drawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
 if (matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
