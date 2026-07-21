@@ -7,7 +7,6 @@
 
 <p>
   <a href="paper/tenet.pdf"><b>📄 论文</b></a> ·
-  <a href="paper/extended_abstract.md"><b>扩展摘要</b></a> ·
   <a href="docs/BENCHMARK.md"><b>基准测试</b></a> ·
   <a href="docs/COMPARISON.md"><b>对比 Mem0 / Zep / Letta</b></a> ·
   <a href="src/tenet/mcp_server.py"><b>MCP 服务器</b></a> ·
@@ -23,7 +22,12 @@
 [![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/tenet/mcp_server.py)
 [![stars](https://img.shields.io/github/stars/Nas01010101/tenet?style=flat&color=8b7cf8)](https://github.com/Nas01010101/tenet/stargazers)
 
-*当你的事实改变时依然正确的智能体记忆——而且读取从不消耗一次 LLM 调用。*
+*当你的人生改变时依然为真的智能体记忆——一种自洽的双时间轴信念状态，而非对日志的检索，读取路径零
+LLM 调用。*
+
+多数智能体记忆是对不断增长的对话日志做检索，而这份日志在事实变化的那一刻就悄悄失效。Tenet 让
+每条事实携带两个时钟——事件时间与事务时间——因此新值会**取代**旧值，而不是与之并存：当前值与
+被取代值分明，随时可查询，人类可读。
 
 **[English README](README.md)** · 本翻译经开源机器翻译系统
 [Argos Translate](https://github.com/argosopentech/argos-translate)（LibreTranslate 所用引擎）
@@ -456,7 +460,7 @@ tenet bench run knowledge-update --provider ollama --principals 4               
 
 ## 仓库结构
 ```
-paper/tenet.md tenet_full.pdf   论文（2 页版 + 完整预印本）
+paper/tenet.md tenet.pdf   论文
 src/tenet/  core.py memory.py distill.py config.py   信念状态记忆引擎
             navigate.py                               自适应无 LLM 多跳召回
             agent.py                                  助手

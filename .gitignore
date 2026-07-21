@@ -47,3 +47,4 @@ paper/*.fls
 paper/*.fdb_latexmk
 data/cache/
 scratchpad/
+.playwright-mcp/
