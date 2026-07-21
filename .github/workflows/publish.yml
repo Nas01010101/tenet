@@ -16,9 +16,7 @@ name: publish
 # or run this workflow manually from the Actions tab. It builds and uploads.
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_dispatch:   # manual only — PyPI publishing is opt-in (needs the one-time pending-publisher setup above)
 
 jobs:
   publish:
