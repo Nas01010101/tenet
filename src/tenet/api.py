@@ -11,12 +11,13 @@ Run locally:  uvicorn tenet.api:app --host 0.0.0.0 --port 8000  (needs the `api`
 """
 from __future__ import annotations
 
+import os
 import secrets
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import Cookie, Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -28,6 +29,19 @@ app = FastAPI(
     description="Persistent, self-forgetting, bi-temporal memory for LLM agents, powered by Qwen Cloud.",
     version="0.2.0",
 )
+
+
+@app.on_event("startup")
+def _warm_embedder() -> None:
+    """Pay the embedder's one-time load at boot, not on a judge's first write.
+    The local sentence-transformers model lazy-loads on first embed (~8s cold);
+    on Alibaba FC, which scales to zero when idle, that stall would otherwise
+    land on the first /reset or /ingest after a cold start. One tiny embed here
+    moves it into startup. No-op cost for the API-embed providers (qwen)."""
+    try:
+        config.embed_texts(["warm"])
+    except Exception:
+        pass  # never let a warm-up failure block the server from starting
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 _SESSION_COOKIE = "tenet_sid"
@@ -47,6 +61,29 @@ class _Session:
 
 
 _sessions: dict[str, _Session] = {"default": _Session()}
+
+# Live-demo spend guard: /chat, /ingest, /recall, /memories cost real Qwen calls
+# (LLM distillation + embeddings). Anonymous callers share a daily budget so the
+# public URL cannot be spammed to run up the owner's Qwen bill; the header
+# X-Tenet-Token (matching env TENET_LIVE_TOKEN) bypasses the cap for the owner.
+_spent = {"day": "", "calls": 0}
+
+
+def _spend_guard(x_tenet_token: str | None = Header(default=None)) -> None:
+    secret = os.environ.get("TENET_LIVE_TOKEN", "")
+    if secret and x_tenet_token == secret:
+        return
+    cap = int(os.environ.get("TENET_LIVE_DAILY_CAP", "60"))
+    today = datetime.now(timezone.utc).date().isoformat()
+    if _spent["day"] != today:
+        _spent.update(day=today, calls=0)
+    if cap <= 0:
+        raise HTTPException(429, "the shared live demo is paused — send X-Tenet-Token to run live")
+    if _spent["calls"] >= cap:
+        raise HTTPException(429, (
+            f"today's shared live-demo budget ({cap} calls) is spent — "
+            "try tomorrow, or send X-Tenet-Token to run live"))
+    _spent["calls"] += 1
 
 
 def _resolve_session(
@@ -98,7 +135,13 @@ class RecallReq(BaseModel):
 @app.get("/")
 def index():
     """The belief-state demo page — single static file, no build step."""
-    return FileResponse(_STATIC_DIR / "index.html")
+    # Serve inline so the demo renders in the browser; FileResponse otherwise
+    # defaults to Content-Disposition: attachment, which forces a download.
+    return FileResponse(
+        _STATIC_DIR / "index.html",
+        media_type="text/html",
+        content_disposition_type="inline",
+    )
 
 
 @app.get("/health")
@@ -140,7 +183,8 @@ def reset(response: Response, tenet_sid: str | None = Cookie(None)):
 
 
 @app.post("/chat")
-def chat(req: ChatReq, sess: _Session = Depends(_resolve_session)):
+def chat(req: ChatReq, sess: _Session = Depends(_resolve_session),
+         _guard: None = Depends(_spend_guard)):
     """The Tenet Assistant: recall relevant memory → answer with Qwen → learn from the
     message (with supersession). A persistent, self-managing memory agent over HTTP."""
     try:
@@ -153,7 +197,8 @@ def chat(req: ChatReq, sess: _Session = Depends(_resolve_session)):
 
 
 @app.post("/ingest")
-def ingest(req: IngestReq, sess: _Session = Depends(_resolve_session)):
+def ingest(req: IngestReq, sess: _Session = Depends(_resolve_session),
+           _guard: None = Depends(_spend_guard)):
     """Distill a raw message into atomic facts and store them (with supersession)."""
     try:
         ids = sess.tenet.ingest(req.message, pinned=req.pinned)
@@ -163,7 +208,8 @@ def ingest(req: IngestReq, sess: _Session = Depends(_resolve_session)):
 
 
 @app.post("/memories")
-def store(req: StoreReq, sess: _Session = Depends(_resolve_session)):
+def store(req: StoreReq, sess: _Session = Depends(_resolve_session),
+          _guard: None = Depends(_spend_guard)):
     try:
         mem_id = sess.tenet.core.store(req.text, pinned=req.pinned)
     except ValueError as e:
@@ -172,7 +218,8 @@ def store(req: StoreReq, sess: _Session = Depends(_resolve_session)):
 
 
 @app.post("/recall")
-def recall(req: RecallReq, sess: _Session = Depends(_resolve_session)):
+def recall(req: RecallReq, sess: _Session = Depends(_resolve_session),
+           _guard: None = Depends(_spend_guard)):
     hits = sess.tenet.core.recall(req.query, k=req.k, char_budget=req.char_budget)
     return {
         "query": req.query,

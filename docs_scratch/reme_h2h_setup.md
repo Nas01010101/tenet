@@ -12,26 +12,23 @@ never a live measurement, and each is labeled accordingly.
 ## 1. The venv
 
 ```
-/private/tmp/claude-501/-Users-wissem-Projects-qwen-hackathon/cab15454-108f-4416-b742-2b0e18763a0b/scratchpad/reme-venv
+scratchpad/reme-venv
 ```
 
-Created from `~/.pyenv/versions/3.11.9/bin/python` (repo's `pyproject.toml` pins
-`requires-python>=3.10`; `reme-ai` needs `>=3.11` — isolated venv, never
-installed into the repo's own `.venv`, mirroring the existing
-`scratchpad/mem0-venv` pattern for real `mem0ai`).
+Created from a Python 3.11 interpreter (`python3.11`) — the repo's `pyproject.toml`
+pins `requires-python>=3.10`, but `reme-ai` needs `>=3.11`, so use an isolated venv,
+never installed into the repo's own `.venv`, mirroring the existing
+`scratchpad/mem0-venv` pattern for real `mem0ai`.
 
 ```
-python -m venv reme-venv
-reme-venv/bin/pip install 'reme-ai[core]'
+python3.11 -m venv scratchpad/reme-venv
+scratchpad/reme-venv/bin/pip install 'reme-ai[core]'
 ```
 
-**This path is session-scratchpad, not repo-scratchpad — it is ephemeral** (tied
-to this Claude Code session's temp dir, not `qwen-hackathon/scratchpad/`) and
-will not survive past this session. Before the live run, recreate it with the
-same two commands at a durable path (e.g. `scratchpad/reme-venv` inside the
-repo, gitignored, matching `mem0-venv`'s convention) — `pip install 'reme-ai[core]'`
-resolves to the same `reme-ai==0.4.1.1` either way (verified below), so nothing
-else in this doc changes.
+Use a durable path such as `scratchpad/reme-venv` inside the repo (gitignored,
+matching `mem0-venv`'s convention); `pip install 'reme-ai[core]'` resolves to the
+same `reme-ai==0.4.1.1` either way (verified below), so nothing else in this doc
+changes.
 
 Verified (no network beyond the `pip install` itself, which the task's
 constraint scopes to "LLM/embedding API calls", not package installation):
@@ -249,11 +246,11 @@ retrieve, untested at scale) is the real constraint, not cost.
 ## 6. The go-command (once DashScope quota is confirmed)
 
 ```bash
-cd /Users/wissem/Projects/qwen-hackathon
+cd /path/to/tenet
 set -a; . ./.env; set +a
 
 # 1. Recreate the venv at a durable path (session scratchpad won't survive):
-~/.pyenv/versions/3.11.9/bin/python -m venv scratchpad/reme-venv
+python3.11 -m venv scratchpad/reme-venv
 scratchpad/reme-venv/bin/pip install 'reme-ai[core]'
 
 # 2. Smoke-test on n=2 with a tight cap first (design doc §2.3: "pilot at n=5-10

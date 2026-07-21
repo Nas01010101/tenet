@@ -7,7 +7,6 @@
 
 <p>
   <a href="paper/tenet.pdf"><b>📄 论文</b></a> ·
-  <a href="paper/extended_abstract.md"><b>扩展摘要</b></a> ·
   <a href="docs/BENCHMARK.md"><b>基准测试</b></a> ·
   <a href="docs/COMPARISON.md"><b>对比 Mem0 / Zep / Letta</b></a> ·
   <a href="src/tenet/mcp_server.py"><b>MCP 服务器</b></a> ·
@@ -23,9 +22,14 @@
 [![MCP](https://img.shields.io/badge/MCP-native-000000.svg)](src/tenet/mcp_server.py)
 [![stars](https://img.shields.io/github/stars/Nas01010101/tenet?style=flat&color=8b7cf8)](https://github.com/Nas01010101/tenet/stargazers)
 
-*读取记忆不应该消耗一次 LLM 调用。*
+*当你的人生改变时依然为真的智能体记忆——一种自洽的双时间轴信念状态，而非对日志的检索，读取路径零
+LLM 调用。*
 
-**[English README](README.md)** · 本翻译由 Anthropic 的 Claude（Fable 5）完成，并使用开源机器翻译系统
+多数智能体记忆是对不断增长的对话日志做检索，而这份日志在事实变化的那一刻就悄悄失效。Tenet 让
+每条事实携带两个时钟——事件时间与事务时间——因此新值会**取代**旧值，而不是与之并存：当前值与
+被取代值分明，随时可查询，人类可读。
+
+**[English README](README.md)** · 本翻译经开源机器翻译系统
 [Argos Translate](https://github.com/argosopentech/argos-translate)（LibreTranslate 所用引擎）
 回译交叉校验；所有数字与技术术语均与英文原版逐一核对。以英文版为准。
 
@@ -115,7 +119,8 @@ Tenet 不是个人助手小玩具——它是一个通用原语，服务于**任
 
 | 基准 | 指标 | Tenet | 对照 | 出处 |
 |---|---|---:|---:|---|
-| MemoryAgentBench FactConsolidation（arXiv:2507.05257），单跳 | SubEM，6K–262K 汇总 | **86.5** [82.8, 89.5] | 已发表 mini 档 SOTA 78.0 · 朴素 RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MemoryAgentBench FactConsolidation（arXiv:2507.05257），单跳 | SubEM，6K–262K 汇总 | **97.0** [94.8, 98.3] | > 已发表 gpt-4o 档 94.8 · mini 档 SOTA 78.0 · 朴素 RAG 47.8 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
+| MAB FactConsolidation，多跳 | SubEM，6K–262K 汇总 | **45.8** [40.9, 50.6] | 已发表 mini 档 SOTA 30.2 的 **1.5×**（CI 排除）· 低于 gpt-4o 档 51.5 · 所有已发表记忆系统 ≤7 · 朴素 RAG 4.5 | [`BENCHMARK.md` §6](docs/BENCHMARK.md#6-mab-factconsolidation--the-standardized-supersession-benchmark-scriptsbench_factconpy) |
 | MAB Accurate-Retrieval | 官方指标平均 | **59.3**（全部已发表系统中第 2 名） | Mem0 32.6 · Zep 37.5 | [`BENCHMARK.md` §7](docs/BENCHMARK.md#7-mab-accurate-retrieval--the-second-mab-competency-scriptsbench_mab_arpy) |
 | MAB Test-Time Learning（5 个 ICL 单元，n=500） | 官方 substr-EM 平均 | **77.2** [73.3, 80.7]（本地 7B 阅读器，$0） | > BM25 75.4 · MemGPT 67.6 · Zep 62.8 · Mem0 32.4（GPT-4o-mini 阅读器） | [`BENCHMARK.md` §16](docs/BENCHMARK.md#16-mab-test-time-learning--the-third-mab-competency-scriptsbench_mab_ttlpy) |
 | 知识翻新地平线（同一事实更新 2→12 次） | 当前值准确率 | **始终 100%** | 朴素 RAG 从 100% 塌到 50% | [`BENCHMARK.md` §3](docs/BENCHMARK.md#3-long-horizon-knowledge-churn--where-memory-structurally-wins-scriptsbench_horizonpy) |
@@ -123,11 +128,15 @@ Tenet 不是个人助手小玩具——它是一个通用原语，服务于**任
 | 本地 LoRA 蒸馏器（离线、零云端） | 键一致性（去污染评测） | **0.775** | 云端参考（`qwen3.7-plus`）0.707 | [`BENCHMARK.md` §10](docs/BENCHMARK.md#10-local-distiller-zero-cloud-verdict) |
 | 与 **ReMe**（阿里自家记忆框架）正面对比，LongMemEval_S n=100 | 问答准确率，同一阅读器/评审 | **67.0%** [57.3, 75.4] | ReMe（其自带 `auto_memory`+BM25 流水线）34.0% · 同条件 RAG 64.0% · 无记忆 0.0% —— McNemar tenet-vs-ReMe p≈2×10⁻⁶ | [`reme_h2h_results.json`](docs/reme_h2h_results.json) |
 
-<sup>FactConsolidation 原始证据：[`docs/factcon_results.json`](docs/factcon_results.json) —— 一次完整的
-n=100/单元（n=800）复现（2026-07-17，$0：本地阅读器 + 本地嵌入 + 零 LLM 键生成），每个单元都与已发表数字
-相差 1 分以内：单跳汇总 86.5 [82.8, 89.5] 完全一致，多跳汇总 30.0 对 30.2。此前一次有界的 n=40 抽查曾把
-单跳标记为未解决的差异；那是采样噪声。该文件还包含一个读取模式消融（官方提示词直读：单跳 66.8 / 多跳 7.5 ——
-同一记忆、同一阅读器模型；文档记载的 `--tenet-read decompose` 才是主张所要求的读取方式）。</sup>
+<sup>FactConsolidation 原始证据：[`docs/factcon_results.json`](docs/factcon_results.json) ——
+2026-07-19 的 n=800 运行，此前**我们自己的失误文件审计暴露了**一个摄取键缺陷：零 LLM 启发式键
+（"事实去掉最后两个词"）只有当值恰好为两个词时才会碰撞，许多过期事实在摄取时悄悄存活。修复后
+（模板标记键生成器，仍然确定性、仍然零 LLM）：单跳 86.5→97.0，多跳 30.0→45.8，而 RAG 对照组
+精确复现其先前的 47.8——唯一改变的就是摄取。完整的修复前复现（2026-07-17，与最初运行每个单元
+相差 1 分以内：单跳 86.5 [82.8, 89.5]，多跳 30.0 对 30.2）以 `previous_run` 保存在证据文件中；
+此前一次有界 n=40 抽查标记的单跳差异已被判定为采样噪声。读取模式消融仍然成立（官方提示词直读：
+单跳 66.8 / 多跳 7.5，修复前——同一记忆、同一阅读器模型；文档记载的 `--tenet-read decompose`
+才是主张所要求的读取方式）。</sup>
 
 <sup>ReMe 正面对比（2026-07-17，[`docs/reme_h2h_results.json`](docs/reme_h2h_results.json)）：两个记忆系统
 摄取完全相同的约 115k token 干草堆（均用 flash 档蒸馏器），并通过同一个 `qwen3.7-plus` 阅读器+评审作答 ——
@@ -388,12 +397,15 @@ Tenet 是一条**前沿曲线，而非一个点**——一个 `expand` 旋钮即
 
 | 6K–262K 汇总 | 朴素 RAG | **Tenet** | 已发表 SOTA（mini / gpt-4o） |
 |---|---:|---:|---:|
-| 单跳 | 47.8 | **86.5** [82.8, 89.5] | 78.0 / 94.8 |
-| 多跳 | 4.5 | **30.2** [26.0, 34.9] | 30.2 / 51.5 |
+| 单跳 | 47.8 | **97.0** [94.8, 98.3] | 78.0 / 94.8 |
+| 多跳 | 4.5 | **45.8** [40.9, 50.6] | 30.2 / 51.5 |
 
-**超过已发表的 mini 档单跳 SOTA、多跳与之持平——用的是本地 7B 骨干模型和*零 LLM* 的
-确定性写入。** SubEM 与官方提示词逐字一致；Wilson 置信区间；无长度塌陷（每个干草堆规模下
-单跳 ≥81%）。详见 [`docs/BENCHMARK.md`](docs/BENCHMARK.md) §6。
+**单跳甚至超过已发表 gpt-4o 档的汇总结果，多跳是已发表 mini 档 SOTA 的 1.5×（低于 gpt-4o 档 51.5）——
+用的是本地 7B 骨干模型和*零 LLM* 的确定性写入**（该零 LLM 键生成器利用了基准测试模板化的事实结构；
+自由文本使用 LLM 蒸馏键生成器——见 §6）。SubEM 与官方提示词逐字一致；Wilson 置信区间；无长度塌陷
+（每个干草堆规模下单跳 ≥96%）。这些数字来自 2026-07-19 的摄取键修复——由我们自己的失误文件
+审计暴露（修复前：86.5 / 30.0——两次运行都保存在证据文件中）。详见
+[`docs/BENCHMARK.md`](docs/BENCHMARK.md) §6。
 
 **MAB Accurate-Retrieval**（约 2,000 题，上下文 197K–534K token，官方逐基准指标，
 同口径 gpt-4o-mini 阅读器）：AR 平均 **59.3** ——仅次于 HippoRAG-v2（65.1，它对每个上下文
@@ -448,7 +460,7 @@ tenet bench run knowledge-update --provider ollama --principals 4               
 
 ## 仓库结构
 ```
-paper/tenet.md tenet_full.pdf   论文（2 页版 + 完整预印本）
+paper/tenet.md tenet.pdf   论文
 src/tenet/  core.py memory.py distill.py config.py   信念状态记忆引擎
             navigate.py                               自适应无 LLM 多跳召回
             agent.py                                  助手
@@ -485,8 +497,7 @@ MIT —— 见 [LICENSE](LICENSE)。
 
 ---
 
-<sub>翻译说明：本文件为 [README.md](README.md) 的简体中文翻译，由 Anthropic 的大语言模型
-Claude（Fable 5）翻译，并用开源神经机器翻译系统
+<sub>翻译说明：本文件为 [README.md](README.md) 的简体中文机器翻译，并用开源神经机器翻译系统
 [Argos Translate](https://github.com/argosopentech/argos-translate)（OpenNMT/CTranslate2 栈，
 LibreTranslate 的翻译引擎）做 zh→en 回译交叉校验；全部数字、模型名与命令经脚本逐一
 与英文原版比对（见 `scripts/check_translation.py`）。若与英文版有出入，以英文版为准。</sub>

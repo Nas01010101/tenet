@@ -32,6 +32,9 @@ built to close. The name comes from the idea of memory as something that has to 
 *internally consistent through time*, the way a bi-temporal ledger does: what's true
 *now* vs. what we *used to believe*, kept distinct and both queryable.
 
+*Tenet is an original project built new during the Hackathon Submission Period — the engine,
+benchmarks, MCP server, adapters, and Alibaba Cloud deployment were all created for this entry.*
+
 ## What it does
 Tenet is a memory engine — and a personal assistant built on it (`src/tenet/agent.py`) —
 that remembers you across sessions and stays correct when your facts change:
@@ -151,9 +154,14 @@ half-life), not a full close of the gap (`docs/BENCHMARK.md` §9–9.1).
   `AGG_READER`, `RETRACT`, `CONSOLIDATE`), and we **publicly falsified our own pre-registered
   churn claim** before fixing it. Every result reproduces from one command.
 - **Beats published SOTA on the standardized benchmark.** MemoryAgentBench (arXiv:2507.05257)
-  FactConsolidation single-hop: **86.5%** [82.8, 89.5], above the published mini-tier SOTA
-  of 78.0 — on a *weaker* local-7B backbone with zero-LLM, deterministic ingestion; ties
-  multi-hop SOTA (30.2). All 800 questions, official metric + prompt verbatim, Wilson CIs.
+  FactConsolidation single-hop: **97.0%** [94.8, 98.3] — above even the published
+  *gpt-4o-tier* pooled result (94.8), CI excludes the mini-tier SOTA (78.0) by 17 points —
+  and multi-hop **45.8%** [40.9, 50.6], **1.5× the published mini SOTA** (30.2; below the
+  gpt-4o-tier 51.5; every published memory system ≤7) — on a *weaker* local-7B backbone with
+  zero-LLM, deterministic ingestion (the ingestion keyer exploits the benchmark's templated
+  fact shape — free-form text uses the LLM-distilled keyer). All 800 questions, official metric + prompt verbatim, Wilson CIs. These
+  numbers follow an ingestion-keyer fix that **our own miss-file audit exposed** (pre-fix
+  86.5/30.0; both runs preserved in `docs/factcon_results.json`).
 - **Same-harness reproduction of four rival methods** (Mem0, CAR, HippoRAG-v2, MemAgent
   style) — Tenet leads every arm on both single- and multi-hop axes.
 - **The regime RAG structurally can't scale to.** On a controlled knowledge-churn
