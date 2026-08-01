@@ -2,7 +2,7 @@
 
 ## Current status: DECOMMISSIONED (deployed 2026-07-10, torn down 2026-08-01)
 > **The hosted demo is no longer running.** The Alibaba Cloud Function Compute
-> deployment has been retired and its credentials revoked; the URL below is dead and
+> deployment has been retired and taken offline; the URL below is dead and
 > is kept only as a record of what was deployed for the hackathon. The project site
 > and the in-repo demo are fully static and call no external API — nothing in this
 > repository requires an Alibaba Cloud key to run or to review.
