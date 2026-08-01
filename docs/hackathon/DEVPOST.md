@@ -224,8 +224,9 @@ Protocol · FastAPI · SQLite · NumPy · Alibaba Cloud OSS · LangGraph · Pyth
 ## Try it out
 - **Code repository:** https://github.com/Nas01010101/tenet (public, MIT license visible
   in About)
-- **Live demo, running on Alibaba Cloud:** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
-  (Function Compute; belief-ledger UI at `/`, `curl .../health`)
+- **Live demo, running on Alibaba Cloud:** ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~
+  — **decommissioned 2026-08-01.** The project site now carries a fully static demo
+  that needs no API key; the zero-key demo below runs the real thing locally.
 - **Zero-key demo (one command, no API key):** `git clone https://github.com/Nas01010101/tenet
   && cd tenet && pip install -e ".[local]" && python examples/00_zero_key_demo.py` —
   measured 94 s clone-to-output on a warm pip cache (first install pulls ~1 GB of wheels)
@@ -237,6 +238,6 @@ Protocol · FastAPI · SQLite · NumPy · Alibaba Cloud OSS · LangGraph · Pyth
 - **Proof of Alibaba Cloud services/APIs:** `src/tenet/config.py` + `src/tenet/distill.py`
   + `src/tenet/memory.py` call `dashscope-intl.aliyuncs.com` (Alibaba Cloud Model
   Studio); `src/tenet/alicloud_oss.py` is the optional OSS proof file.
-- **Live backend on Alibaba Cloud:** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
-  — full deploy method + caveats: `docs/DEPLOY.md`.
+- **Live backend on Alibaba Cloud:** ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~
+  (decommissioned) — full deploy method + caveats: `docs/DEPLOY.md`.
 - **Blog post (optional, Blog Post Prize):** [BLOG URL] — candidate: `docs/BLOG.md`

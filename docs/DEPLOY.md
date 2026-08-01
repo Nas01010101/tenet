@@ -1,9 +1,19 @@
 # Deploying Tenet on Alibaba Cloud (mandatory Proof-of-Deployment)
 
-## Current status (deployed 2026-07-10)
-**Live on Alibaba Cloud Function Compute 3.0** (`ap-southeast-1`), verified working:
+## Current status: DECOMMISSIONED (deployed 2026-07-10, torn down 2026-08-01)
+> **The hosted demo is no longer running.** The Alibaba Cloud Function Compute
+> deployment has been retired and its credentials revoked; the URL below is dead and
+> is kept only as a record of what was deployed for the hackathon. The project site
+> and the in-repo demo are fully static and call no external API — nothing in this
+> repository requires an Alibaba Cloud key to run or to review.
+>
+> The deployment record below is preserved verbatim because the reproduction notes
+> (runtime-version pitfalls, the SDK-vs-CLI upload issue) are the useful part.
 
-- **URL:** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
+**As deployed on Alibaba Cloud Function Compute 3.0** (`ap-southeast-1`), verified working
+at the time:
+
+- **URL:** ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~ (decommissioned)
 - `GET /health` → `200 {"status":"ok","provider":"qwen","embed_provider":"qwen",...}`
 - `POST /ingest` → `200 {"stored":1,"ids":[1]}` — a real `qwen3.6-flash` distillation call,
   live, on Alibaba Cloud compute.
@@ -173,7 +183,8 @@ ephemeral `/tmp` means memory doesn't survive a cold start unless OSS snapshot/r
 
 ## Proof-of-deploy checklist
 - [x] Backend reachable on an Alibaba Cloud public URL (`/health` returns ok) —
-      https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run/health
+      ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run/health~~
+      (satisfied at submission time; deployment since decommissioned, see above)
 - [ ] Short recording: the service running on Alibaba Cloud + a live request (for the
       demo video — the `curl` commands above are the shot)
 - [x] `src/tenet/alicloud_oss.py` linked as the "uses Alibaba Cloud services/APIs" file

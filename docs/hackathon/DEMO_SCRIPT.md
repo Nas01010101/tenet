@@ -100,5 +100,7 @@ bge-small model once so the take is airplane-mode-safe) or `tenet timeline --all
 - **Presentation (15):** the belief state is visible and readable — supersession happens *on screen*.
 
 ## AliCloud proof (for the separate/optional deploy shot + the form field)
-Live backend on Alibaba Cloud Function Compute: `https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run`.
-Code-file proof: `src/tenet/config.py` (`dashscope-intl.aliyuncs.com`) + `src/tenet/alicloud_oss.py`.
+Backend as deployed on Alibaba Cloud Function Compute:
+`https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run` — **decommissioned 2026-08-01**,
+no longer live. Code-file proof (still valid): `src/tenet/config.py`
+(`dashscope-intl.aliyuncs.com`) + `src/tenet/alicloud_oss.py`.

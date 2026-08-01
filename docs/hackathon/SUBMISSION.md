@@ -238,8 +238,9 @@ with a 2-page paper + full preprint in `paper/`.
 - **Proof of Alibaba Cloud services/APIs:** `src/tenet/config.py` + `src/tenet/distill.py` +
   `src/tenet/memory.py` call `dashscope-intl.aliyuncs.com` (Alibaba Cloud Model Studio);
   optional OSS: `src/tenet/alicloud_oss.py`
-- **Live backend on Alibaba Cloud (bonus):** https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run
-  (Function Compute, `ap-southeast-1`) — `curl .../health`, `docs/DEPLOY.md`
+- **Live backend on Alibaba Cloud (bonus):** ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~
+  (Function Compute, `ap-southeast-1`) — **decommissioned 2026-08-01**; deploy record in
+  `docs/DEPLOY.md`
 - **Blog post (optional, Blog Post Prize):** [BLOG URL]
 
 ## Submission checklist
@@ -251,16 +252,20 @@ with a 2-page paper + full preprint in `paper/`.
 - [ ] Track identified (Track 1)
 - [ ] (optional) blog/social post linked
 - [x] (optional, for full "runs on Alibaba Cloud" credit) backend deployed to ECS/FC —
-      live at https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run, see `docs/DEPLOY.md`
+      was live at ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~, since
+      decommissioned; see `docs/DEPLOY.md`
 
 ## Devpost form draft
 Ready-to-paste content for every Devpost form field (tagline, inspiration,
 what-it-does, how-we-built-it, challenges, accomplishments, what's-next, built-with):
 [`docs/hackathon/DEVPOST.md`](DEVPOST.md).
 
-## Deploy status (updated 2026-07-10)
-**Live on Alibaba Cloud Function Compute** (`ap-southeast-1`), verified working:
-**https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run** — `/health` returns 200, a
+## Deploy status (deployed 2026-07-10, DECOMMISSIONED 2026-08-01)
+> The hosted backend has been torn down and its credentials revoked. The record below
+> describes the deployment as it stood at submission time; the URL is no longer live.
+
+**As deployed on Alibaba Cloud Function Compute** (`ap-southeast-1`), verified working:
+**~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~** — `/health` returned 200, a
 real `POST /ingest` distills via `qwen3.6-flash` and stores successfully, and `GET /`
 serves the belief-ledger web demo UI, all live on Alibaba Cloud compute. Full
 deploy method, the two runtime-version pitfalls hit along the way
