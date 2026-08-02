@@ -12,7 +12,7 @@
 **As deployed on Alibaba Cloud Function Compute 3.0** (`ap-southeast-1`), verified working
 at the time:
 
-- **URL:** ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run~~ (decommissioned)
+- **URL:** `<function-url>.fcapp.run` (decommissioned)
 - `GET /health` → `200 {"status":"ok","provider":"qwen","embed_provider":"qwen",...}`
 - `POST /ingest` → `200 {"stored":1,"ids":[1]}` — a real `qwen3.6-flash` distillation call,
   live, on Alibaba Cloud compute.
@@ -190,7 +190,7 @@ ephemeral `/tmp` means memory doesn't survive a cold start unless OSS snapshot/r
 
 ## Proof-of-deploy checklist
 - [x] Backend reachable on an Alibaba Cloud public URL (`/health` returns ok) —
-      ~~https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run/health~~
+      `<function-url>.fcapp.run/health`
       (satisfied at submission time; deployment since decommissioned, see above)
 - [ ] Short recording: the service running on Alibaba Cloud + a live request (for the
       demo video — the `curl` commands above are the shot)

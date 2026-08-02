@@ -12,6 +12,7 @@ Run locally:  uvicorn tenet.api:app --host 0.0.0.0 --port 8000  (needs the `api`
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import tempfile
 from datetime import datetime, timezone
@@ -71,8 +72,22 @@ _spent = {"day": "", "calls": 0}
 
 def _spend_guard(x_tenet_token: str | None = Header(default=None)) -> None:
     secret = os.environ.get("TENET_LIVE_TOKEN", "")
-    if secret and x_tenet_token == secret:
+    if secret:
+        # A token is configured: it is the authentication gate, not a fast lane.
+        # compare_digest so a wrong guess leaks nothing through response timing.
+        if x_tenet_token is None or not secrets.compare_digest(x_tenet_token, secret):
+            raise HTTPException(401, "X-Tenet-Token required")
         return
+    # No token configured. These routes spend real Qwen credits per call, so an
+    # unauthenticated deployment is opt-in, never the default: TENET_LIVE_OPEN=1 is
+    # the deliberate "yes, I know anyone can bill me" switch. The cap below is a
+    # courtesy brake, NOT a control -- it is per-process and resets on every cold
+    # start, so it bounds nothing on a serverless deploy that scales to zero.
+    if os.environ.get("TENET_LIVE_OPEN", "") != "1":
+        raise HTTPException(401, (
+            "this endpoint spends model credits and is closed by default — set "
+            "TENET_LIVE_TOKEN and send X-Tenet-Token, or set TENET_LIVE_OPEN=1 to "
+            "accept an open, billable endpoint"))
     cap = int(os.environ.get("TENET_LIVE_DAILY_CAP", "60"))
     today = datetime.now(timezone.utc).date().isoformat()
     if _spent["day"] != today:
@@ -86,6 +101,26 @@ def _spend_guard(x_tenet_token: str | None = Header(default=None)) -> None:
     _spent["calls"] += 1
 
 
+_SID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
+
+
+def _session_db(sid: str) -> Path:
+    """Path for a session's db, confined to _SESSION_DIR.
+
+    The id reaches us from a query param or a cookie, so it is attacker-controlled:
+    without the charset check `session=../../data/tenet` would open (and /reset would
+    unlink) any .db on the box. Belt and braces — reject odd ids, then confirm the
+    resolved path really is inside _SESSION_DIR before anyone touches the filesystem.
+    """
+    if not _SID_RE.match(sid):
+        raise HTTPException(400, "invalid session id")
+    root = _SESSION_DIR.resolve()
+    path = (root / f"{sid}.db").resolve()
+    if path.parent != root:
+        raise HTTPException(400, "invalid session id")
+    return path
+
+
 def _resolve_session(
     response: Response,
     session: str | None = Query(None, description="explicit session id (testing/curl)"),
@@ -93,7 +128,7 @@ def _resolve_session(
 ) -> _Session:
     sid = session or tenet_sid or "default"
     if sid not in _sessions:
-        _sessions[sid] = _Session(_SESSION_DIR / f"{sid}.db")
+        _sessions[sid] = _Session(_session_db(sid))
     if sid != "default":
         response.set_cookie(_SESSION_COOKIE, sid, httponly=True, samesite="lax", max_age=86400)
     return _sessions[sid]
@@ -174,9 +209,9 @@ def reset(response: Response, tenet_sid: str | None = Cookie(None)):
     if tenet_sid and tenet_sid in _sessions and tenet_sid != "default":
         old = _sessions.pop(tenet_sid)
         old.tenet.close()
-        (_SESSION_DIR / f"{tenet_sid}.db").unlink(missing_ok=True)
+        _session_db(tenet_sid).unlink(missing_ok=True)
     sid = secrets.token_hex(8)
-    sess = _Session(_SESSION_DIR / f"{sid}.db")
+    sess = _Session(_session_db(sid))
     _sessions[sid] = sess
     response.set_cookie(_SESSION_COOKIE, sid, httponly=True, samesite="lax", max_age=86400)
     return {"session": sid, **sess.tenet.stats()}
@@ -231,6 +266,7 @@ def recall(req: RecallReq, sess: _Session = Depends(_resolve_session),
 
 
 @app.post("/forget")
-def forget(sess: _Session = Depends(_resolve_session)):
+def forget(sess: _Session = Depends(_resolve_session),
+           _guard: None = Depends(_spend_guard)):
     n = sess.tenet.core.forget_sweep()
     return {"archived": n, **sess.tenet.core.stats()}

@@ -101,6 +101,6 @@ bge-small model once so the take is airplane-mode-safe) or `tenet timeline --all
 
 ## AliCloud proof (for the separate/optional deploy shot + the form field)
 Backend as deployed on Alibaba Cloud Function Compute:
-`https://tenet-demo-wrenarokun.ap-southeast-1.fcapp.run` — **decommissioned 2026-08-01**,
+`<function-url>.fcapp.run` — **decommissioned 2026-08-01**,
 no longer live. Code-file proof (still valid): `src/tenet/config.py`
 (`dashscope-intl.aliyuncs.com`) + `src/tenet/alicloud_oss.py`.
