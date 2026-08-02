@@ -19,10 +19,9 @@ at the time:
   live, on Alibaba Cloud compute.
 - `GET /` → the belief-ledger web demo UI (`src/tenet/static/index.html`), 200, ~17KB.
 
-**How it was deployed** (once `ALIBABA_CLOUD_ACCESS_KEY_ID`/`_SECRET` were available —
-a root-account AccessKey, not RAM-scoped; fine for a hackathon demo, not what you'd run
-in production): Function Compute's zip-based **web function** path, no container/ACR
-needed. `pip install --target=pkg --platform manylinux2014_x86_64 --abi cp311
+**How to deploy it** (with `ALIBABA_CLOUD_ACCESS_KEY_ID`/`_SECRET` from a **RAM user
+scoped to Function Compute** — never a root-account AccessKey): Function Compute's
+zip-based **web function** path, no container/ACR needed. `pip install --target=pkg --platform manylinux2014_x86_64 --abi cp311
 --only-binary=:all: openai numpy fastapi uvicorn` (cp311 wheels — `custom.debian12`'s
 system `python3` is 3.11; `custom.debian10`'s is 3.7 and silently fails to import
 modern `typing` features, `custom.debian11` is 3.9 — **the Python version must match the
@@ -31,7 +30,8 @@ independently in this path), copy `src/tenet` into the package root, a 6-line
 `app.py` (`uvicorn.run("tenet.api:app", host="0.0.0.0", port=9000)`), zip (~21MB), then
 `CreateFunction` (runtime `custom.debian12`, `customRuntimeConfig.command=["python3",
 "app.py"]`, `customRuntimeConfig.port=9000`, `cpu=0.5`, `memorySize=512`) +
-`CreateTrigger` (`http`, `authType=anonymous`) via the `alibabacloud_fc20230330` Python
+`CreateTrigger` (`http`, `authType=function` — see the auth note below) via the
+`alibabacloud_fc20230330` Python
 SDK — the `aliyun` CLI's `--body file://…` path silently truncated the ~28MB
 base64-encoded inline zip mid-request (malformed-JSON error from the server), so the SDK
 was used directly instead. Full reproduction script referenced below.
@@ -88,9 +88,10 @@ alternative/fallback (e.g. if a proof video specifically wants to show a public 
 `docker ps`) but untested on this pass.
 
 ## Prereqs (both paths)
-- Alibaba Cloud account + an AccessKey (ID + Secret). Ours was a **root-account** key
-  (not a scoped RAM user — the docs elsewhere recommend RAM + least privilege; use what
-  you have, root works for a hackathon demo).
+- Alibaba Cloud account + an AccessKey (ID + Secret) belonging to a **RAM user with
+  least privilege** (Function Compute only). Don't use a root-account AccessKey: it
+  can't be scoped, and if it leaks it hands over the whole account rather than one
+  function.
 - OSS bucket: *not required* for Path B as deployed (ephemeral `/tmp`, see "Current
   status" above) — only needed if you wire up snapshot/restore.
 - Env values: `DASHSCOPE_API_KEY`, `ALIBABA_CLOUD_ACCESS_KEY_ID/_SECRET`,
@@ -167,9 +168,16 @@ req = m.CreateFunctionInput(
 client.create_function(m.CreateFunctionRequest(body=req))
 client.create_trigger("tenet-demo", m.CreateTriggerRequest(body=m.CreateTriggerInput(
     trigger_name="httpTrigger", trigger_type="http",
-    trigger_config='{"authType":"anonymous","methods":["GET","POST","PUT","DELETE"]}',
+    trigger_config='{"authType":"function","methods":["GET","POST","PUT","DELETE"]}',
 )))
 PY
+# NOTE ON AUTH: authType=function requires a signed request, so the endpoint is not
+# world-callable. Do NOT use authType=anonymous here. /ingest and /chat spend model
+# credits on every call, so an anonymous HTTP trigger is an open invitation to bill
+# your account -- and a scheduled keep-warm ping against it bills you on a timer with
+# no visitors at all. If you genuinely need a public demo, put it behind a rate limit
+# and a spend cap (scripts/test_ratelimit.py covers the guard) and watch the billing
+# page.
 
 # 3. verify (this is the proof shot)
 curl https://<function-url>.fcapp.run/health
