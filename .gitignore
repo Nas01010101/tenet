@@ -53,3 +53,10 @@ docs_scratch/reme_ws/
 docs/hackathon/DEVPOST_FORM.md
 docs/DEVPOST_FORM.md
 uv.lock
+
+# ---- Scratch: local run artifacts, not part of the repo ----
+docs_scratch/
+!docs_scratch/ruler_mh_hop.md
+!docs_scratch/ruler_mh_rrf.md
+scripts/logs/
+logs/
