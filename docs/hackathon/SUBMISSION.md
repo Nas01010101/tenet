@@ -260,8 +260,8 @@ Ready-to-paste content for every Devpost form field (tagline, inspiration,
 what-it-does, how-we-built-it, challenges, accomplishments, what's-next, built-with):
 [`docs/hackathon/DEVPOST.md`](DEVPOST.md).
 
-## Deploy status (deployed 2026-07-10, DECOMMISSIONED 2026-08-01)
-> The hosted backend has been torn down and taken offline. The record below
+## Deploy status (deployed 2026-07-10, RETIRED 2026-08-01)
+> The hosted backend is no longer available and the URL no longer serves. The record below
 > describes the deployment as it stood at submission time; the URL is no longer live.
 
 **As deployed on Alibaba Cloud Function Compute** (`ap-southeast-1`), verified working:
