@@ -189,7 +189,15 @@ def embed_texts(texts: list[str]):
     if EMBED_PROVIDER == "local":
         global _local_embedder
         if _local_embedder is None:
-            from sentence_transformers import SentenceTransformer
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as exc:  # the zero-key path is the first thing most people run
+                raise ImportError(
+                    "EMBED_PROVIDER=local needs the 'local' extra, which isn't installed.\n"
+                    "  pip install -e \".[local]\"\n"
+                    "It pulls sentence-transformers (~1 GB of wheels on a cold cache); every "
+                    "run after that is offline and needs no API key."
+                ) from exc
             _local_embedder = SentenceTransformer(LOCAL_EMBED_MODEL)
         vecs = _local_embedder.encode(texts, normalize_embeddings=True, show_progress_bar=False)
         return [np.asarray(v, dtype=np.float32) for v in vecs]
